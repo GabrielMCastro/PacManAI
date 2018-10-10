@@ -1,0 +1,31 @@
+Design:
+Neural network with 3 hidden layers. 
+
+{
+    WALL    = 0;
+    BISCUIT = 1;
+    EMPTY   = 2;
+    BLOCK   = 3;
+    PILL    = 4;
+}
+
+Input layer takes (428 nodes): (All inputs should be normalized to be between 0-1)
+    1. Map Space: 22*19 matrix, 418 nodes
+    2. Player xy: 2 nodes -- (xy is in map-matrix input space)
+    3. Enemies xy: 4 * 2, 8 nodes -- (xy is in map-matrix input space)
+Layer 1:
+    1. 12 neurons
+Layer 2:
+    1. 12 neurons
+Layer 3:
+    1. 12 neurons
+Output Layer:
+    1. 4 output neurons -- Each neuron represents a direction
+        a. Left
+        b. Right
+        c. Up
+        D. Down
+    2. The neuron with the highest value is the decision chosen
+        1. Value between 0 - 1 --- Sigmoidified
+
+After each run, the networks with the highest fitness will be bred with each other for the next generation.
