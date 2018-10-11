@@ -1068,7 +1068,7 @@ var PACMAN = (function () {
         {
             ary = user.pointToCoord(userPos.y) * 19
             arx = user.pointToCoord(userPos.x)
-            input[ary + arx] = .5
+            input[ary + arx] = 1
         }
 
         // The ghosts positions
@@ -1076,7 +1076,7 @@ var PACMAN = (function () {
         {
             ary = ghosts[i].pointToCoord(ghostPos[i].old.y) * 19
             arx = ghosts[i].pointToCoord(ghostPos[i].old.x)
-            input[ary + arx] = 1
+            input[ary + arx] = 2
         }
 
         return input

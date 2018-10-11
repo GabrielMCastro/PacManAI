@@ -8,8 +8,10 @@ class AITrainer
         {
             this.population.push(new NeuralNetwork(
                                                 [[418],
-                                                [12],
-                                                [12],
+                                                [150],
+                                                [100],
+                                                [50],
+                                                [25],
                                                 [12],
                                                 [4]],
                                                 1,

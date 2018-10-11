@@ -139,15 +139,24 @@ class NeuralNetwork
 
     mutateWeights(mutationrate)
     {
-        for(var i = 0; i < this.weights.length; i++)
+        if(Math.random() < mutationrate)
         {
-            for(var j = 0; j < this.weights[i].length; j++)
+            for(var i = 0; i < this.weights.length; i++)
             {
-                for(var k = 0; k < this.weights[i][j].length; k++)
+                for(var j = 0; j < this.weights[i].length; j++)
                 {
-                    if(Math.random() < mutationrate)
+                    for(var k = 0; k < this.weights[i][j].length; k++)
                     {
-                        this.weights[i][j][k] = ((Math.random() * 2) - 1)
+                        if(Math.random() < mutationrate)
+                        {
+                            if(Math.random() < .8)
+                            {
+                                this.weights[i][j][k] = ((Math.random() * 2) - 1)
+                            }else
+                            {
+                                this.weights[i][j][k] = (this.weights[i][j][k] * 1.05)
+                            }
+                        }
                     }
                 }
             }
