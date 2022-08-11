@@ -11,7 +11,7 @@ class NeuralNetwork
 {
     /**
      *  Parameters:
-     *      1. 2*x matrix - row represents layer number, and collumn represents layer size
+     *      1. array - index represents layer number, and value represents layer size
      *      2. bias
      *      3. activation function
      */
@@ -28,31 +28,30 @@ class NeuralNetwork
          * weights[n - 1] = weights for the output layer. A (y, x) matrix containing the weights for each connection
          */
         this.weights = new Array()
-        this.inputs = new Array()
-        this.output = new Array(this.layers[this.layers.length - 1][0])    // The output of the network.
+        this.output = new Array(this.layers[this.layers.length - 1])    // The output of the network.
         this.bias = bias                                                   // The bias for the network
         this.score = 0                                                     // The score for the network
     }
 
-    execute(inlayer)
+    execute(input)
     {
-        this.inputs[0] = inlayer
-        for(var i = 0; i < (this.layers.length - 2); i++)
+        var currLayer = input
+        for(var i = 0; i < (this.layers.length - 1); i++)
         {
-            this.inputs[i + 1] = this.matrixMultiply(this.weights[i], this.inputs[i])
+            currLayer = this.executeLayer(this.weights[i], currLayer)
         }
-       this.output = this.matrixMultiply(this.weights[this.layers.length - 2], this.inputs[this.layers.length - 2])
+       this.output = currLayer
     }
 
-    matrixMultiply(inweights, inlayer)
+    executeLayer(weights, layer)
     {
         var result = new Array()
-        for(var i = 0; i < inweights.length; i++)
+        for(var i = 0; i < weights.length; i++)
         {
             var sum = 0
-            for(var j = 0; j < inweights[i].length; j++)
+            for(var j = 0; j < weights[i].length; j++)
             {
-                sum += (inweights[i][j] * inlayer[j])
+                sum += (weights[i][j] * layer[j])
             }
             sum -= this.bias;
             result[i] = this.activationfunction(sum)
@@ -75,11 +74,6 @@ class NeuralNetwork
         return decision
     }
 
-    provideInput(inlayer)
-    {
-        this.inputs[0] = inlayer
-    }
-
     // Generates weights for each connection in the network
     generateWeights()
     {
@@ -88,8 +82,8 @@ class NeuralNetwork
         {
             this.weights.push(new Array())
 
-            x = this.layers[i][0]
-            y = this.layers[i + 1][0]
+            x = this.layers[i]
+            y = this.layers[i + 1]
 
             for(var j = 0; j < y; j++)
             {
@@ -149,7 +143,7 @@ class NeuralNetwork
                     {
                         if(Math.random() < mutationrate)
                         {
-                            if(Math.random() < .8)
+                            if(Math.random() < .5)
                             {
                                 this.weights[i][j][k] = ((Math.random() * 2) - 1)
                             }else

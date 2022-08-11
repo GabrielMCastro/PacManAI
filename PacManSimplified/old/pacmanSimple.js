@@ -582,11 +582,11 @@ Pacman.Map = function (size) {
         ctx.lineWidth   = 5;
         ctx.lineCap     = "round";
         
-        for (i = 0; i < Pacman.WALLS.length; i += 1) {
+        for (var i = 0; i < Pacman.WALLS.length; i += 1) {
             line = Pacman.WALLS[i];
             ctx.beginPath();
 
-            for (j = 0; j < line.length; j += 1) {
+            for (var j = 0; j < line.length; j += 1) {
 
                 p = line[j];
                 
@@ -625,8 +625,8 @@ Pacman.Map = function (size) {
             pillSize = 0;
         }
         
-        for (i = 0; i < height; i += 1) {
-		    for (j = 0; j < width; j += 1) {
+        for (var i = 0; i < height; i += 1) {
+		    for (var j = 0; j < width; j += 1) {
                 if (map[i][j] === Pacman.PILL) {
                     ctx.beginPath();
 
@@ -656,8 +656,8 @@ Pacman.Map = function (size) {
 
         drawWall(ctx);
         
-        for (i = 0; i < height; i += 1) {
-		    for (j = 0; j < width; j += 1) {
+        for (var i = 0; i < height; i += 1) {
+		    for (var j = 0; j < width; j += 1) {
 			    drawBlock(i, j, ctx);
 		    }
 	    }
@@ -860,24 +860,24 @@ var PACMAN = (function () {
         
         ghostPos = [];
 
-        for (i = 0, len = ghosts.length; i < len; i += 1) {
+        for (var i = 0, len = ghosts.length; i < len; i += 1) {
             ghostPos.push(ghosts[i].move(ctx));
         }
         u = user.move(ctx);
         
-        for (i = 0, len = ghosts.length; i < len; i += 1) {
+        for (var i = 0, len = ghosts.length; i < len; i += 1) {
             redrawBlock(ghostPos[i].old);
         }
         redrawBlock(u.old);
         
-        for (i = 0, len = ghosts.length; i < len; i += 1) {
+        for (var i = 0, len = ghosts.length; i < len; i += 1) {
             ghosts[i].draw(ctx);
         }                     
         user.draw(ctx);
         
         userPos = u["new"];
         
-        for (i = 0, len = ghosts.length; i < len; i += 1) {
+        for (var i = 0, len = ghosts.length; i < len; i += 1) {
             if (collided(userPos, ghostPos[i]["new"])) {
                 if (ghosts[i].isVunerable()) { 
                     ghosts[i].eat();
@@ -925,7 +925,7 @@ var PACMAN = (function () {
                 setState(PLAYING);
             } else if (state === DYING) {
                 redrawBlock(userPos);
-                for (i = 0, len = ghosts.length; i < len; i += 1) {
+                for (var i = 0, len = ghosts.length; i < len; i += 1) {
                     redrawBlock(ghostPos[i].old);
                     ghostPos.push(ghosts[i].draw(ctx));
                 }  
@@ -934,7 +934,7 @@ var PACMAN = (function () {
                 //     loseLife();
                 // } else { 
                 //     redrawBlock(userPos);
-                //     for (i = 0, len = ghosts.length; i < len; i += 1) {
+                //     for (var i = 0, len = ghosts.length; i < len; i += 1) {
                 //         redrawBlock(ghostPos[i].old);
                 //         ghostPos.push(ghosts[i].draw(ctx));
                 //     }                                   
@@ -971,7 +971,7 @@ var PACMAN = (function () {
     function eatenPill() {
         timerStart = tick;
         eatenCount = 0;
-        for (i = 0; i < ghosts.length; i += 1) {
+        for (var i = 0; i < ghosts.length; i += 1) {
             ghosts[i].makeEatable(ctx);
         }        
     };
@@ -1010,7 +1010,7 @@ var PACMAN = (function () {
             "eatenPill"      : eatenPill 
         }, map);
 
-        for (i = 0, len = ghostSpecs.length; i < len; i += 1) {
+        for (var i = 0, len = ghostSpecs.length; i < len; i += 1) {
             ghost = new Pacman.Ghost({"getTick":getTick}, map, ghostSpecs[i]);
             ghosts.push(ghost);
         }
@@ -1097,15 +1097,15 @@ var KEY = {'BACKSPACE': 8, 'TAB': 9, 'NUM_PAD_CLEAR': 12, 'ENTER': 13, 'SHIFT': 
         KEY['' + (i - 48)] = i;
 	}
 	/* A - Z */
-	for (i = 65; i <= 90; i++) {
+	for (var i = 65; i <= 90; i++) {
         KEY['' + String.fromCharCode(i)] = i;
 	}
 	/* NUM_PAD_0 - NUM_PAD_9 */
-	for (i = 96; i <= 105; i++) {
+	for (var i = 96; i <= 105; i++) {
         KEY['NUM_PAD_' + (i - 96)] = i;
 	}
 	/* F1 - F12 */
-	for (i = 112; i <= 123; i++) {
+	for (var i = 112; i <= 123; i++) {
         KEY['F' + (i - 112 + 1)] = i;
 	}
 })();
@@ -1248,7 +1248,7 @@ Pacman.WALLS = [
 
 Object.prototype.clone = function () {
     var i, newObj = (this instanceof Array) ? [] : {};
-    for (i in this) {
+    for (var i in this) {
         if (i === 'clone') {
             continue;
         }

@@ -7,13 +7,7 @@ class AITrainer
         for(var i = 0; i < this.populationsize; i++)
         {
             this.population.push(new NeuralNetwork(
-                                                [[418],
-                                                [150],
-                                                [100],
-                                                [50],
-                                                [25],
-                                                [12],
-                                                [4]],
+                                                [418, 150, 100, 50, 25, 12, 4],
                                                 1,
                                                 (x) =>
                                                 {

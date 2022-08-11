@@ -3,6 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <title>HTML5 Pacman</title>
+
+    <!-- <script src="../AI/NeuralNetwork.js"></script>
+    <script src="../AI/AITrainer.js"></script> -->
+    <!-- <script id="game" src="pacmansimple.js"></script> -->
+    <script type="module" src="simulationenvironment.js"></script>
+    <script src="modernizr-1.5.min.js"></script>
     
     <style type="text/css">
       @font-face {
@@ -12,9 +18,9 @@
 	    font-style: normal;
       }
       #pacman {
-        height:450px;
-        width:342px;
-        margin:20px auto;
+        display: flex;
+        justify-content: space-around;
+        flex-wrap: wrap;
       }
       #shim { 
         font-family: BDCartoonShoutRegular; 
@@ -22,8 +28,9 @@
         visibility:hidden
       }
       h1 { font-family: BDCartoonShoutRegular; text-align:center; }
-      body { width:342px; margin:0px auto; font-family:sans-serif; }
+      body { font-family:sans-serif; }
       a { text-decoration:none; }
+      /* width:342px; margin:0px auto; */
     </style>
 
 </head>
@@ -31,18 +38,10 @@
 <body>
   
   <div id="shim">shim for font face</div>
-
   <h1>pacman</h1>
-  <div id="pacman"></div>
-  <h1 id="stats">Generation: , Child: , Population Size: , Highest Score: ,</h1>
-
-
-  <script src="../AI/NeuralNetwork.js"></script>
-  <script src="../AI/AITrainer.js"></script>
-  <script id="game" src="pacmansimple.js"></script>
-  <script src="simulationenvironment.js"></script>
-  <script src="modernizr-1.5.min.js"></script>
-
-
+  <div>
+    <div id="sim_container"></div>
+    <div id="control_bar"></div>
+  </div>
 </body>
 </html>
