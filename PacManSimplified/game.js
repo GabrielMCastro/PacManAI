@@ -1,4 +1,4 @@
-import {WAITING, COUNTDOWN, PAUSE, EATEN_PAUSE, DYING, PLAYING, KEY } from "/objects/definitions.js"
+import {WAITING, COUNTDOWN, PAUSE, EATEN_PAUSE, DYING, PLAYING, KEY, MAP } from "/objects/definitions.js"
 import { User } from "/objects/user.js";
 import { Map } from "/objects/map.js"
 import { Ghost } from "/objects/ghost.js";
@@ -21,7 +21,9 @@ export const Game = function (fps, render, AI, savename) {
         user         = null,
         stored       = null,
         networksaved = false,
+        canvas,
         stats,
+        rec,
         FPS = fps;
 
     function getTick() { 
@@ -196,7 +198,7 @@ export const Game = function (fps, render, AI, savename) {
 
         var diff;
 
-        if(AI.getGenerationAt() <= AI.getMaxGeneration())
+        if(AI.getGenerationAt() < AI.getMaxGeneration())
         {
 
             if (state !== PAUSE) { 
@@ -218,6 +220,10 @@ export const Game = function (fps, render, AI, savename) {
                 // dialog("Press N to start a New game");
                 if (!AI.isGenerationOver()) {
                     startNewGame();
+                } else {
+                    if (rec && rec.state == "recording") {
+                        rec.stop()
+                    }
                 }
             } else if (state === EATEN_PAUSE /*&& 
                     (tick - timerStart) > (FPS / 3)*/) {
@@ -294,9 +300,9 @@ export const Game = function (fps, render, AI, savename) {
     function init(wrapper) {
         
         var i, len, ghost,
-            blockSize = 342 / 19,
-            canvas    = document.createElement("canvas");
+            blockSize = 342 / 19;
         
+        canvas = document.createElement("canvas")
         canvas.setAttribute("width", (blockSize * 19) + "px");
         canvas.setAttribute("height", (blockSize * 22) + 30 + "px");
 
@@ -347,43 +353,64 @@ export const Game = function (fps, render, AI, savename) {
         timer = window.setInterval(mainLoop, 1000 / FPS);
     };
 
+    function recordGeneration() {
+        const chunks = []; // here we will store our recorded media chunks (Blobs)
+        const stream = canvas.captureStream(); // grab our canvas MediaStream
+        rec = new MediaRecorder(stream); // init the recorder
+        // every time the recorder has new data, we will store it in our array
+        rec.ondataavailable = e => chunks.push(e.data);
+        // only when the recorder stops, we construct a complete Blob from all the chunks
+        rec.onstop = e => exportVid(new Blob(chunks, {type: 'video/webm'}));
+        
+        rec.start();
+    }
 
-    /** Gets the current state of the map and normalizes each input between 0 and 1
+    function exportVid(blob) {
+        const vid = document.createElement('video');
+        vid.src = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.download = 'pacAI.webm';
+        a.href = vid.src;
+        a.textContent = 'download the video';
+        document.body.appendChild(a);
+        a.click()
+        document.body.removeChild(a);
+    }
+
+
+    /** Gets the current state of the map and normalizes each input between -1 and 1
      *  Wall    = 0
      *  Buiscut = .1
      *  Empty   = .2
      *  Block   = .3
      *  Pill    = .4
-     *  Enemy   = 1
-     *  Pacman  = .5
+     *  Ghos   = 1 if dangerous, -1 if vulnerable
+     *  Pacman  = .7
      */
     function getInput()
     {
         var input = [];
         
         // The values in the map, pills walls etc
-        for(var i = 0; i < 22; i++)
+        for(var i = 0; i < MAP.length; i++)
         {
-            for(var j = 0; j < 19; j++)
+            for(var j = 0; j < MAP[i].length; j++)
             {
                 input.push(map.map[i][j] / 10)
             }
         }
 
         // The player position
-        for(var i = 0; i < 1; i++)
-        {
-            var ary = user.pointToCoord(userPos.y) * 19
-            var arx = user.pointToCoord(userPos.x)
-            input[ary + arx] = 1
-        }
+        var ary = user.pointToCoord(userPos.y) * MAP[0].length
+        var arx = user.pointToCoord(userPos.x)
+        input[ary + arx] = .7
 
         // The ghosts positions
-        for(var i = 0; i < 4; i++)
+        for(var i = 0; i < ghosts.length; i++)
         {
-            var ary = ghosts[i].pointToCoord(ghostPos[i].old.y) * 19
+            var ary = ghosts[i].pointToCoord(ghostPos[i].old.y) * MAP[0].length
             var arx = ghosts[i].pointToCoord(ghostPos[i].old.x)
-            input[ary + arx] = 2
+            input[ary + arx] = ghosts[i].isVunerable() ? -1 : 1
         }
 
         return input
@@ -391,7 +418,8 @@ export const Game = function (fps, render, AI, savename) {
     
     return {
         "init" : init,
-        "startNewGame" : startNewGame
+        "startNewGame" : startNewGame,
+        "recordGeneration" : recordGeneration
     };
     
 }

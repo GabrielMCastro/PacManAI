@@ -1,6 +1,6 @@
 import { NeuralNetwork } from "./neuralNetwork.js"
 
-export const AITrainer = function (populationSize, maxGenerations, mutationR, selRate)
+export const AITrainer = function (populationSize, maxGenerations, mutationR, id)
 {
     var generations = 0        // Number of generations the algorithm has been running
     var currPop  = 0             // The current network being tested
@@ -14,7 +14,7 @@ export const AITrainer = function (populationSize, maxGenerations, mutationR, se
     // Gen networks
     for(var i = 0; i < populationSize; i++)
     {
-        population.push(NeuralNetwork(structure, 1, activation))
+        population.push(NeuralNetwork(structure, 1, activation, `${id}_${generations}_${i}`))
         population[i].generateWeights()
     }
 
@@ -29,14 +29,14 @@ export const AITrainer = function (populationSize, maxGenerations, mutationR, se
     }
 
 
-    function advanceGeneration(diversity) {
-        console.log('moving on')
+    function advanceGeneration(diversity, mateP) {
+        // console.log('moving on')
         topNetwork = getTopNetwork()
-        generateNewPopulation(diversity)
         generations += 1
         currPop = 0
         maxScore = 0
         generationOver = false
+        generateNewPopulation(diversity, mateP)
     }
 
     function getPopulationAt()
@@ -77,22 +77,34 @@ export const AITrainer = function (populationSize, maxGenerations, mutationR, se
     }
 
     // Generate a new population from the breeding sample
-    function generateNewPopulation(diversity)
+    function generateNewPopulation(diversity, mateP)
     {
         var newpop = new Array()
+
+        for (var i = 0; i < (populationSize * (1 - mateP)); i++) {
+            var newNet = NeuralNetwork(structure, 1, activation, `${id}_${generations}_${i}`)
+            newNet.setWeights(diversity[i % diversity.length].getWeights())
+            newNet.mutateWeights(mutationR)
+            newpop.push(newNet)
+        }
+
+        var nonMated = newpop.length
         
-        for(var i = 0; i < populationSize; i++)
+        for(var i = 0; i < (populationSize * mateP); i++)
         {
-            var newNetwork = mate(diversity[Math.floor(Math.random() * (diversity.length - 1))], diversity[Math.floor(Math.random() * (diversity.length - 1))])
-            newNetwork.mutateWeights(mutationRate)
-            newpop.push(newNetwork)
+            var rand1 = Math.floor(Math.random() * (diversity.length - 1))
+            var rand2 = Math.floor(Math.random() * (diversity.length - 1))
+            var newNet = mate(diversity[rand1], diversity[rand2], nonMated + i)
+            newNet.mutateWeights(mutationR)
+            newpop.push(newNet)
         }
 
         population = newpop
     }
 
-    function mate(net1, net2) {
-        var newNet = NeuralNetwork(structure, 1, activation)
+    // Half-half weights
+    function mate(net1, net2, x) {
+        var newNet = NeuralNetwork(structure, 1, activation, `${id}_${generations}_${x}*`)
         newNet.setWeights(net1.getWeights())
 
         for (var i = 0; i < newNet.getWeights().length; i++) {

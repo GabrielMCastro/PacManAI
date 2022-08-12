@@ -7,7 +7,7 @@
  *      3. activation function
  */
 
-export const NeuralNetwork = function (layers, bias, activation) 
+export const NeuralNetwork = function (layers, bias, activation, id) 
 {
 
     /**
@@ -119,6 +119,10 @@ export const NeuralNetwork = function (layers, bias, activation)
         return layers
     }
 
+    function getId() {
+        return id
+    }
+
     function mutateWeights(mutationrate)
     {
         if(Math.random() < mutationrate)
@@ -152,6 +156,7 @@ export const NeuralNetwork = function (layers, bias, activation)
         "setScore" : setScore,
         "getScore" : getScore,
         "getLayers" : getLayers,
-        "mutateWeights" : mutateWeights
+        "mutateWeights" : mutateWeights,
+        "getId" : getId,
     }
 }

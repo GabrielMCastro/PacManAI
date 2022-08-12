@@ -17,10 +17,20 @@
 	    font-weight: normal;
 	    font-style: normal;
       }
-      #pacman {
+      #sim_container {
         display: flex;
         justify-content: space-around;
         flex-wrap: wrap;
+      }
+      #control_bar {
+        max-width: 342px;
+        border: solid;
+        max-height: 100vh;
+        overflow: scroll;
+      }
+      #container {
+        display: grid;
+        grid-template-columns: 80% 20%;
       }
       #shim { 
         font-family: BDCartoonShoutRegular; 
@@ -39,7 +49,7 @@
   
   <div id="shim">shim for font face</div>
   <h1>pacman</h1>
-  <div>
+  <div id="container">
     <div id="sim_container"></div>
     <div id="control_bar"></div>
   </div>

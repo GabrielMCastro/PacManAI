@@ -255,6 +255,10 @@ export const User = function (game, map, render) {
             ctx.fill();  
         }  
     };
+
+    function getPosition() {
+        return position
+    }
     
     initUser();
 
@@ -271,7 +275,8 @@ export const User = function (game, map, render) {
         "newLevel"      : newLevel,
         "reset"         : reset,
         "resetPosition" : resetPosition,
+        "getPosition"   : getPosition,
         "setDirection"  : setDirection,
-        "pointToCoord" : pointToCoord,
+        "pointToCoord"  : pointToCoord,
     };
 };
