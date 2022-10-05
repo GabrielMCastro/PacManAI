@@ -182,12 +182,12 @@ export const Ghost = function (game, map, colour, fps, render) {
 
     function pane(pos) {
 
-        if (pos.y === 100 && pos.x >= 190 && direction === RIGHT) {
-            return {"y": 100, "x": -10};
+        if (pos.x >= 190 && direction === RIGHT) { //pos.y === 100 && 
+            return {"y": pos.y, "x": -10};
         }
         
-        if (pos.y === 100 && pos.x <= -10 && direction === LEFT) {
-            return position = {"y": 100, "x": 190};
+        if (pos.x <= -10 && direction === LEFT) { //pos.y === 100 && 
+            return position = {"y": pos.y, "x": 190};
         }
 
         return false;

@@ -3,11 +3,11 @@ import { User } from "/objects/user.js";
 import { Map } from "/objects/map.js"
 import { Ghost } from "/objects/ghost.js";
 
-export const Game = function (fps, render, AI, savename) {
+export const Game = function (fps, render, AI, savename, id) {
 
     var state        = WAITING,
         ghosts       = [],
-        ghostSpecs   = ["#00FFDE", "#FF0000", "#FFB8DE", "#FFB847"],
+        ghostSpecs   = [],//"#00FFDE", "#FF0000"], //"#FFB8DE", "#FFB847"],
         eatenCount   = 0,
         level        = 0,
         tick         = 0,
@@ -18,12 +18,14 @@ export const Game = function (fps, render, AI, savename) {
         ctx          = null,
         timer        = null,
         map          = null,
+        mapI         = 0, 
         user         = null,
         stored       = null,
         networksaved = false,
         canvas,
         stats,
         rec,
+        pacOld,
         FPS = fps;
 
     function getTick() { 
@@ -66,10 +68,10 @@ export const Game = function (fps, render, AI, savename) {
         AI.setScore(user.theScore()) // Setting the AI score
 
         // Updating the stats
-        stats.innerHTML = "Generation: " + AI.getGenerationAt() + ", " + "Child: " + (AI.getPopulationAt() + 1) + ", Population Size: " + AI.getPopulationSize() + ", Highest Score: " + AI.getTopScore()
+        stats.innerHTML = "Generation: " + AI.getGenerationAt() + ", " + "Child: " + AI.getCurrentNetId() + " - " + (AI.getPopulationAt() + 1) + ", Population Size: " + AI.getPopulationSize() + ", Highest Score: " + AI.getTopScore()
          
         user.reset();
-        map.reset();
+        map.reset(mapI);
         
         map.draw(ctx);
 
@@ -210,9 +212,8 @@ export const Game = function (fps, render, AI, savename) {
             if (state === PLAYING) {
                 mainDraw();
                 // Deciding which direction to go
-                var temp = getInput();
-                AI.execute(temp);
-                user.setDirection(AI.getDecision());
+                var input = getInput();
+                user.setDirection(AI.execute(input));
 
             } else if (state === WAITING && stateChanged) {            
                 stateChanged = false;
@@ -285,7 +286,7 @@ export const Game = function (fps, render, AI, savename) {
     function completedLevel() {
         setState(WAITING);
         level += 1;
-        map.reset();
+        map.reset(mapI);
         user.newLevel();
         startLevel();
     };
@@ -305,6 +306,11 @@ export const Game = function (fps, render, AI, savename) {
         canvas = document.createElement("canvas")
         canvas.setAttribute("width", (blockSize * 19) + "px");
         canvas.setAttribute("height", (blockSize * 22) + 30 + "px");
+        canvas.setAttribute("id", id)
+
+        // var networkCanvas = document.createElement("canvas")
+        // networkCanvas.setAttribute("height", (blockSize * 22) + 30 + "px")
+        // AI.setCanvas(networkCanvas)
 
         var wrapperDiv = document.createElement("div");
         wrapperDiv.style.width = (blockSize * 19) + "px"
@@ -378,48 +384,68 @@ export const Game = function (fps, render, AI, savename) {
     }
 
 
-    /** Gets the current state of the map and normalizes each input between -1 and 1
-     *  Wall    = 0
-     *  Buiscut = .1
-     *  Empty   = .2
-     *  Block   = .3
-     *  Pill    = .4
-     *  Ghos   = 1 if dangerous, -1 if vulnerable
-     *  Pacman  = .7
+    /** Gets the current state of the map
+     *  Wall    = 0 = 0
+     *  Buiscut = 1 = 1
+     *  Empty   = 2 = 2
+     *  Block   = 3 = 0
+     *  Pill    = 4 = 3
+     *  Ghost   = -1 if dangerous, 1 if vulnerable
+     *  Pacman  = empty = 2
+     * 
+     *  Orients the input around Pacman's perspective 9x9 box
      */
     function getInput()
     {
-        var input = [];
-        
-        // The values in the map, pills walls etc
-        for(var i = 0; i < MAP.length; i++)
-        {
-            for(var j = 0; j < MAP[i].length; j++)
-            {
-                input.push(map.map[i][j] / 10)
-            }
-        }
-
-        // The player position
-        var ary = user.pointToCoord(userPos.y) * MAP[0].length
-        var arx = user.pointToCoord(userPos.x)
-        input[ary + arx] = .7
+        var mapCopy = map.map.clone()
 
         // The ghosts positions
         for(var i = 0; i < ghosts.length; i++)
         {
-            var ary = ghosts[i].pointToCoord(ghostPos[i].old.y) * MAP[0].length
-            var arx = ghosts[i].pointToCoord(ghostPos[i].old.x)
-            input[ary + arx] = ghosts[i].isVunerable() ? -1 : 1
+            var gY = ghosts[i].pointToCoord(ghostPos[i].old.y)
+            var gX = ghosts[i].pointToCoord(ghostPos[i].old.x)
+            mapCopy[gY][gX] = ghosts[i].isVunerable() ? 1 : -1
+        }
+
+        var input = []
+        var uY = user.pointToCoord(userPos.y)
+        var uX = user.pointToCoord(userPos.x)
+
+        for (var i = 0; i < 9; i++) {
+            var row = []
+            for (var j = 0; j < 9; j++) {
+                var coordVal = mapCopy?.[(uY - 4) + i]?.[(uX - 4) + j]
+                coordVal = coordVal != undefined ? coordVal : 0
+                switch (coordVal) {
+                    case 3:
+                        coordVal = 0
+                        break
+                    case 4:
+                        coordVal = 3
+                        break
+                }
+                row.push(coordVal)
+            }
+            input.push(...row)
         }
 
         return input
+    }
+
+    function killPlayer() {
+        setState(DYING)
+    }
+
+    function setMapI(i) {
+        mapI = i
     }
     
     return {
         "init" : init,
         "startNewGame" : startNewGame,
-        "recordGeneration" : recordGeneration
+        "recordGeneration" : recordGeneration,
+        "killPlayer" : killPlayer,
+        "setMapI" : setMapI,
     };
     
 }

@@ -36,7 +36,7 @@ export const User = function (game, map, render) {
 
     function initUser() {
         score = 0;
-        lives = 3;
+        lives = 1//3;
         newLevel();
     }
     
@@ -160,12 +160,12 @@ export const User = function (game, map, render) {
             return {"new" : position, "old" : position};
         }
         
-        if (npos.y === 100 && npos.x >= 190 && direction === RIGHT) {
-            npos = {"y": 100, "x": -10};
+        if (npos.x >= 190 && direction === RIGHT) { //npos.y === 100 && 
+            npos = {"y": npos.y, "x": -10};
         }
         
-        if (npos.y === 100 && npos.x <= -12 && direction === LEFT) {
-            npos = {"y": 100, "x": 190};
+        if (npos.x <= -12 && direction === LEFT) { //npos.y === 100 && 
+            npos = {"y": npos.y, "x": 190};
         }
         
         position = npos;        
@@ -197,7 +197,9 @@ export const User = function (game, map, render) {
 
     function isMidSquare(x) { 
         var rem = x % 10;
-        return rem > 3 || rem < 7;
+        var ret = rem > 3 || rem < 7;
+        // if (ret) console.log(ret)
+        return ret
     };
 
     function calcAngle(dir, pos) { 

@@ -1,4 +1,4 @@
-import { OBJECTS, WALLS, MAP } from "./definitions.js";
+import { OBJECTS, MAP, generateWalls } from "./definitions.js";
 
 export const Map = function (size, render) {
     
@@ -6,6 +6,7 @@ export const Map = function (size, render) {
         width     = null, 
         blockSize = size,
         pillSize  = 0,
+        walls = null,
         map       = null;
     
     function withinBounds(y, x) {
@@ -31,11 +32,11 @@ export const Map = function (size, render) {
             var i, j, p, line;
             
             ctx.strokeStyle = "#0000FF";
-            ctx.lineWidth   = 5;
+            ctx.lineWidth   = blockSize * .75//5;
             ctx.lineCap     = "round";
             
-            for (var i = 0; i < WALLS.length; i += 1) {
-                line = WALLS[i];
+            for (var i = 0; i < walls.length; i += 1) {
+                line = walls[i];
                 ctx.beginPath();
 
                 for (var j = 0; j < line.length; j += 1) {
@@ -46,7 +47,8 @@ export const Map = function (size, render) {
                         ctx.moveTo(p.move[0] * blockSize, p.move[1] * blockSize);
                     } else if (p.line) {
                         ctx.lineTo(p.line[0] * blockSize, p.line[1] * blockSize);
-                    } else if (p.curve) {
+                    } 
+                    else if (p.curve) {
                         ctx.quadraticCurveTo(p.curve[0] * blockSize, 
                                             p.curve[1] * blockSize,
                                             p.curve[2] * blockSize, 
@@ -58,10 +60,11 @@ export const Map = function (size, render) {
         }
     }
     
-    function reset() {       
-        map    = MAP.clone();
+    function reset(mapI) {       
+        map    = MAP[mapI].clone();
+        walls = generateWalls(map)
         height = map.length;
-        width  = map[0].length;        
+        width  = map[0].length;       
     };
 
     function block(pos) {
@@ -146,7 +149,7 @@ export const Map = function (size, render) {
         } 
     };
 
-    reset();
+    reset(0);
     
     return {
         "draw"         : draw,
