@@ -1,270 +1,254 @@
 /**
- *  A Neural Network module
+ *  A Neural Network
+ *  Gene encoding: v.w.x.y.z - each gene represents one connection
+ *      v: global innovation number of gene
+ *      w: input node
+ *      x: output node
+ *      y: weight (to be divided by 100)
+ *      z: enable bit
  * 
  *  Parameters:
- *      1. array - index represents layer number, and value represents layer size
+ *      1. genes - form of [innovationN.inputNode.outputNode.weight.enableBit]
  *      2. bias
  *      3. activation function
+ *      4. output activation function
+ *      5. returns the global info of the population - input nodes, all hidden nodes, output nodes, innovation numbers
  */
+ import {complex, multiply} from "https://dev.jspm.io/mathjs";
 
-export const NeuralNetwork = function (genes, bias, activation, outputActivation, id) 
+
+export const NeuralNetwork = function (genes, bias, activation, outputActivation, id, getGlobalInfo) 
 {
-    var score = 0                                        // The score for the network
-    var hex2bin = (hex) => (parseInt(hex, 16).toString(2)).padStart(28, 0)
-    var bin2hex = (bin) => (parseInt(bin, 2).toString(16)).padStart(7, 0)
-    var replaceAt = (i, s, r) => s.slice(0, i) + r + s.slice(i + r.length)
-    var hexRef = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f']
-    var network
-    var genome = genes
-    var levels = 1
-    var canvas
-    var INPUT_NUM = 81
-    var MAX_INT_NUM = 255
-    var OUTPUT_NUM = 4
-    var DIV_CONST = 535
+    let score = 0
+    let genome = genes
+    let networkMatrix
+    let outputMatrix
+    let mask
 
-    generateNetwork()
-
+    // Generate connection matrices from genes
     function generateNetwork() {
-        initNetwork()
-        levels = 1
-        var binGenes = genome.map((g) => hex2bin(g))
-        for (var i = 0; i < binGenes.length; i++) {
-            var inputBin = binGenes[i].slice(0, 9)
-            var outputBin = binGenes[i].slice(9, 18)
-            var weightBin = binGenes[i].slice(18)
+        let gInfo = getGlobalInfo()
+        
+        let connections = new Array()
+        genome.forEach(g => {
+            let gene = g.split(".")
+            connections[gene[1]] = [...(connections[gene[1]] ?? []), {out: parseInt(gene[2]), weight: gene[3] / 100, enabled: !!parseInt(gene[4])}]
+        })
 
-            // Parse input neuron of connection
-            var extIn = parseInt(inputBin[0])
-            var inNeuron = parseInt(inputBin.slice(1), 2) % MAX_INT_NUM
-            if (extIn) {
-                inNeuron = inNeuron % INPUT_NUM // Number of neurons on input layer
-            } else {
-                inNeuron += INPUT_NUM
-            }
+        // Order of inputs and hidden nodes in mask/matrix
+        let maskOrder = new Array()
+        connections.forEach((c, i) => {
+            if (c != null) maskOrder.push(i)
+        })
 
-            // Parse output neuron of connection
-            var extOut = parseInt(outputBin[0])
-            var outNeuron = parseInt(outputBin.slice(1), 2) % MAX_INT_NUM
-            if (extOut) {
-                outNeuron = INPUT_NUM + MAX_INT_NUM + (outNeuron % OUTPUT_NUM) // Number of neurons on output layer
-            } else {
-                outNeuron += INPUT_NUM
-            }
+        // Connection matrix
+        networkMatrix = Array.apply(null, Array(maskOrder.length)).map(
+            () => Array.apply(null, Array(maskOrder.length)).map(() => 0))
 
-            // Parse weight
-            var sign = parseInt(weightBin[0])
-            var weight = (parseInt(weightBin.slice(1), 2) / DIV_CONST) * ((sign == 1) ? 1 : -1)
+        // Output matrix
+        outputMatrix = Array.apply(null, Array(maskOrder.length)).map(
+            () => Array.apply(null, Array(gInfo.outputs)).map(() => 0))
 
-            if (inNeuron < outNeuron) {
-                network[inNeuron].downstream.push({
-                    id: outNeuron,
-                    weight: weight
+        // Populating the weights of the matrices
+        connections.forEach((n, i) => {
+            if (n != null) {
+                let inputI = maskOrder.indexOf(i) // Get the ith node's index in the mask
+                n.forEach(o => { // for each output of the node
+                    if (o.enabled) { // If the connection is enabled
+                        if (o.out < gInfo.outputs) { // If an output node
+                            outputMatrix[inputI][o.out] = o.weight
+                        } else { // Otherwise must be a hidden node
+                            networkMatrix[inputI][maskOrder.indexOf(o.out)] = o.weight
+                        }
+                    }
                 })
-                network[outNeuron].upstream.push(inNeuron)
-                if(network[inNeuron].level == network[outNeuron].level) {
-                    network[outNeuron].level += 1
-                }
-                // For rendering purposes
-                if (network[outNeuron].level == levels) levels++
             }
-        }
+        })
 
-        // let paths = getUpstreamPaths()
-        // console.log(paths)
-        // console.log(genome)
-        // console.log(getVisualization())
-    }
+        // Set mask
+        mask = maskOrder.map((v) => {
+            if (v < (gInfo.outputs + gInfo.inputs)) return 0
+            return complex('i')
+        })
 
-    function initNetwork() {
-        network = new Array()
-        for(var i = 0; i < (INPUT_NUM + MAX_INT_NUM + OUTPUT_NUM); i++) {
-            network.push({
-                downstream: [],
-                upstream: [],
-                value: 0,
-                level: 0,
-                on: false
-            })
-        }
-    }
-
-    function getVisualization() {
         return {
-            levels: levels,
-            visual: network
+            networkMatrix,
+            outputMatrix,
+            mask
         }
     }
 
-    // function renderCanvas() {
-    //     var h = INPUT_NUM * 15 
-    //     var w = levels * 20
-    //     canvas.setAttribute("height", h + "px");
-    //     canvas.setAttribute("width", w + "px");
-    // }
-
-    function setCanvas(cvs) {
-        canvas = cvs
-    }
-
-    function inputValues(inputs) {
-        for(var i = 0; i < inputs.length; i++) {
-            network[i].value = inputs[i]
-        }
-    }
-
+    // Accept an input state and return the networks decision
     function execute(inputs) {
-        inputValues(inputs)
-        for(var i = 0; i < (network.length - OUTPUT_NUM); i++) {
-            network[i].value = activation(network[i].value + bias)
-            network[i].on = true
-            for (var j = 0; j < network[i].downstream.length; j++) {
-                var down = network[i].downstream[j]
-
-                // Neurons should just reset themselves after executing
-                // if (network[down.id].on) {
-                //     network[down.id].on = false
-                //     network[down.id].value = 0
-                // }
-                // if (network[i].value > 0) {
-                
-                // }
-
-                network[down.id].value += network[i].value * down.weight
-            }
-            network[i].value = 0 // Reset output for next decision
+        // Add initial inputs to mask
+        let tmpMask = [...mask]
+        for (let i = 0; i < inputs.length; i++) { // TODO: use slice
+            tmpMask[i] = inputs[i]
         }
 
-        var outputs = []
-        for (var i = 0; i < OUTPUT_NUM; i++) {
-            var x = (network.length - 1) - i
-            outputs.push(network[x].value + bias)
-            network[x].value = 0 // Reset output for next decision
+        // Initial pass
+        let product = multiply(tmpMask, networkMatrix)
+        tmpMask = activateAndRemask(product, tmpMask)
+        // All subsequent passes
+        while (stillImaginary(tmpMask)) {
+            product = multiply(tmpMask, networkMatrix)
+            tmpMask = activateAndRemask(product, tmpMask)
         }
 
-        var activatedOutput = outputActivation(outputs)
 
-        // console.log({ outputs, activatedOutput, sum: activatedOutput.reduce((curr, val) => curr + val, 0)})
-        // console.log(network)
+        // Get final output, add bias, and run through activation function
+        let output = multiply(tmpMask, outputMatrix)
+        let activatedOutput = outputActivation(output.map((v) => v + bias))
 
         return decision(activatedOutput)
     }
 
-    function getUpstreamPaths() {
-        var paths = []
-        for (var i = 0; i < OUTPUT_NUM; i++) {
-            var x = (network.length - 1) - i
-            paths.push(getUpstream(network[x], x))
-        }
-
-        return paths
-    }
-
-    // Follows all upstream paths of a neuron to an input 
-    function getUpstream(neuron, id) {
-        if (neuron.upstream.length == 0) {
-            if (id < INPUT_NUM) {
-                return id
-            } else {
-                return false
+    // Activate non-imaginary results and update mask
+    function activateAndRemask(delta, old) {
+        let newM = [...old]
+        for (let i = 0; i < delta.length; i++) {
+            if (typeof(old[i]) == "object") {
+                if (typeof(delta[i]) == "number") {
+                    newM[i] = activation(delta[i] + bias)
+                } else if (typeof(delta[i]) == "object" && delta[i].im == 0) {
+                    newM[i] = activation(delta[i].re + bias)
+                }
             }
         }
-        
-        var path = []
-       for (var i = 0; i < neuron.upstream.length; i++) {
-           var upId = neuron.upstream[i]
-           var upPath = getUpstream(network[upId], upId)
-           if (upPath !== false) path.push(upPath)
-       }
-
-       if (path.length == 0) return false
-       return {
-           at: id,
-           up: path
-       }
+        return newM
     }
 
+    // Checks if mask still has any imaginary values
+    function stillImaginary(mask) {
+        for (let i = 0; i < mask.length; i++) {
+            if (typeof(mask[i]) == "object") return true
+        }
+        return false
+    }
+
+    // Return the index of output with the greatest probability of success
     function decision(outputs)
     {
-        var decision = 0
-        for(var i = 0; i < 4; i++)
+        let decision = 0
+        for(let i = 0; i < 4; i++)
         {
             if(outputs[i] > outputs[decision]){ decision = i }
         }
         return decision
     }
 
-    function setBias(inbias)
+    // Mutates the structure of the network
+    // Split defines the probability of adding a node over adding a connection
+    // ex: .5 -> 50/50 chance of either, .7 -> 70 (adding a node) / 30 (adding a connection)
+    function mutateStructure(rate, split, addInnovations)
     {
-        bias = inbias
+        if (Math.random() < rate) {
+            if (Math.random() < split) { // If less than the split add a node
+                let gI = Math.floor(Math.random() * genome.length) // Select random connection/gene to split
+                let gInfo = getGlobalInfo()
+                let dGInfo = addInnovations(2, 1) // Update global info
+                let newNode = gInfo.outputs + gInfo.inputs + dGInfo.hidden - 1
+                let dna = genome[gI].split(".")
+                dna[4] = 0 // Disable old gene
+                // New genes to connect old input -> new node -> old output
+                let g1 = `${dGInfo.innovations - 1}.${dna[1]}.${newNode}.100.1`, 
+                    g2 = `${dGInfo.innovations}.${newNode}.${dna[2]}.${dna[3]}.1`;
+                
+                // Update genome
+                genome[gI] = dna.join(".")
+                genome.push(g1, g2)
+            } else { // Add connection
+                let gInfo = getGlobalInfo()
+                let weight = Math.floor(Math.random() * 201) - 100
+
+                // Get existing connections so we don't duplicate
+                // Possible input and outputs are selected from existing nodes in the network
+                // Nodes ordered as ...outputs, ...inputs, ...hidden
+                let connectedNodes = []
+                let inputs = []
+                let outputs = []
+                genome.forEach((v) => {
+                    let dna = v.split(".")
+                    let i = parseInt(dna[1]), o = parseInt(dna[2])
+                    inputs.push(i >= gInfo.outputs ? i : -1, o >= gInfo.outputs ? o : -1)
+                    outputs.push((i < gInfo.outputs || i >= gInfo.outputs + gInfo.inputs) ? i : -1, 
+                                 (o < gInfo.outputs || o >= gInfo.outputs + gInfo.inputs) ? o : -1)
+                    if (!!parseInt(dna[4])) {
+                        connectedNodes[i] = [...(connectedNodes[i] ?? []), parseInt(o)]
+                    }
+                })
+                inputs = inputs.filter((v, i, s) => v >= 0 && s.indexOf(v) == i)
+                outputs = outputs.filter((v, i, s) => v >= 0 && s.indexOf(v) == i)
+
+                // Find input and output nodes that aren't already connected
+                let attempts = 0
+                let maxAttempts = inputs.length * outputs.length // Total possible connections
+                let input = inputs[Math.floor(Math.random() * inputs.length)]
+                let output = outputs[Math.floor(Math.random() * outputs.length)]
+                while (alreadyConnected(input, output, connectedNodes) && attempts < maxAttempts) {
+                    input = inputs[Math.floor(Math.random() * inputs.length)]
+                    output = outputs[Math.floor(Math.random() * outputs.length)]
+                    attempts++
+                }
+
+                // If network isn't already fully connected
+                if (attempts < maxAttempts) {
+                    let dGInfo = addInnovations(1, 0) // Update global info
+                    let gene = `${dGInfo.innovations}.${input}.${output}.${weight}.1`
+                    // Update genome
+                    genome.push(gene)
+                }
+            }
+        }
     }
 
-    function getBias()
-    {
-        return bias
+    // Mutates the weights of the network
+    // If should mutate, replaces the weight with a random value [-100,100]
+    function mutateWeights(rate) {
+        for (let i = 0; i <  genome.length; i++) {
+            if (Math.random() < rate) {
+                let dna = genome[i].split(".")
+                dna[3] = `${Math.floor(Math.random() * 201) - 100}`
+                genome[i] = dna.join(".")
+            }
+        }
     }
 
+    // Checks if the two nodes are already connected, either a -> b or b -> a
+    function alreadyConnected(a, b, connections) {
+        return connections[a]?.includes(b) || connections[b]?.includes(a) || a == b
+    }
+
+    // Set the score of the network
     function setScore(sc)
     {
         score = sc
     }
 
+    // Get the score of the network
     function getScore()
     {
         return score
     }
 
+    // Get the id of the network
     function getId() {
         return id
     }
 
-    function setGenome(genes) {
-        genome = genes
-        generateNetwork()
-    }
-
-    function mutateGenome(mutationRate)
-    {
-        if (false){//Math.random < (1 / genome.length())) { // Add gene
-            var gene = ""
-            for (var j = 0; j < 7; j++) {
-                gene += hexRef[Math.floor(Math.random() * 16)]
-            }
-            genome.push(gene)
-        } else { // Mutate existing genes
-            var binGenes = genome.map((g) => hex2bin(g))
-            var binGenes = binGenes.map((g) => {
-                if (Math.random() < mutationRate) {
-                    var i = Math.floor(Math.random() * (g.length - 1))
-                    var mutatedG = replaceAt(i, g, g[i] == "0" ? "1" : "0")
-
-                    return mutatedG
-                }
-                return g
-            })
-            // console.log(binGenes)
-            genome = binGenes.map((g) => bin2hex(g))
-            // console.log(genome)
-        }
-    }
-
+    // Get the genes of the network
     function getGenome() {
         return genome
     }
 
     return {
         "execute" : execute,
-        "setBias" : setBias,
-        "getBias" : getBias,
         "setScore" : setScore,
         "getScore" : getScore,
-        "mutateGenome" : mutateGenome,
         "getGenome" : getGenome,
         "getId" : getId,
-        "getVisualization" : getVisualization,
-        "setCanvas" : setCanvas,
-        "getUpstreamPaths" : getUpstreamPaths,
-        "hex2bin" : hex2bin,
-        "bin2hex" : bin2hex
+        "mutateWeights" : mutateWeights,
+        "mutateStructure" : mutateStructure,
+        "generateNetwork" : generateNetwork
     }
 }
