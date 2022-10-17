@@ -128,7 +128,7 @@ export const AITrainer = function (config)
     // Increment current network being tested and assign to given sim
     function moveToNext(sim)
     {
-        if(currentNet < (populationSize - 1))
+        if(currentNet < (population.length - 1))
         {
             currentNet += 1
             simCurrentNets[sim] = currentNet
@@ -344,7 +344,7 @@ export const AITrainer = function (config)
     // Returns the population size
     function getPopulationSize()
     {
-        return populationSize
+        return population.length
     }
 
     // Returns entire population of neural networks

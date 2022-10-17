@@ -7,15 +7,16 @@ let con_bar = document.getElementById("control_bar")
 
 let FRAMERATE = 300,
     GAMES = new Array(),
-    averageScores = new Array();
+    averageScores = new Array(),
+    generationSummaries = new Array();
 
 let config = {
-    SimNum: 4,
-    PopulationSize: 20,
-    MaxGens: 4,
+    SimNum: 10,
+    PopulationSize: 50,
+    MaxGens: 400,
     WeightMutationR: .1,
-    StructureMutationR: .7,
-    StructureMutationSplit: .7,
+    StructureMutationR: .8,
+    StructureMutationSplit: .5,
     Inputs: 15,
     Outputs: 4,
     ReproductionPercentile: .75,
@@ -68,24 +69,29 @@ let checkSims = () => {
             let avg = sum / sorted.length
             averageScores.push(avg)
             
+            // Generation summary
+            generationSummaries.push({
+                species: AI.getSpecies(),
+                networks: sorted.map(nn => {
+                return {
+                    id: nn.getId(),
+                    score: nn.getScore(),
+                    genome: nn.getGenome(),
+                }
+            })})
+
             // Post average score of gen to sidebar
             let pav = document.createElement('p')
-            pav.innerHTML = `* Generation ${AI.getCurrentGeneration()} Avg: ${avg}`
+            let gen = AI.getCurrentGeneration()
+            pav.innerHTML = `* Generation ${gen} Avg: ${avg}`
             pav.onclick = (e) => {
-                console.log(`-- Generation ${AI.getCurrentGeneration()} Reproducers --`)
-                console.log(sorted.map(nn => {
-                    return {
-                        id: nn.getId(),
-                        score: nn.getScore(),
-                        genome: nn.getGenome(),
-                    }
-                }))
+                console.log(`-- Generation ${gen} Reproducers --`)
+                console.log(generationSummaries[gen])
             }
             con_bar.appendChild(pav)
 
             AI.advanceGeneration()
 
-            let gen = AI.getCurrentGeneration()
             clearInterval(killPlayersInterval)
             for (let i = 0; i < GAMES.length; i++) {
                 if (gen < (config.MaxGens * .33)) {
