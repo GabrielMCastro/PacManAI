@@ -352,6 +352,11 @@ export const AITrainer = function (config)
         return [...population]
     }
 
+    // Returns speciated population
+    function getSpecies() {
+        return [...species]
+    }
+
     // Returns the id for a specific sim's network
     function getCurrentNetId(sim) {
         return population[simCurrentNets[sim]].getId()
@@ -362,6 +367,7 @@ export const AITrainer = function (config)
         "advanceGeneration" : advanceGeneration,
         "getNetworkAt" : getNetworkAt,
         "getPopulation" : getPopulation,
+        "getSpecies" : getSpecies,
         "getCurrentGeneration" : getCurrentGeneration,
         "getMaxGeneration" : getMaxGeneration,
         "isGenerationOver" : isGenerationOver,
