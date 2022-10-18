@@ -196,7 +196,9 @@ export const AITrainer = function (config)
         let adjustedFitnesses = newSpecies.map(v => v.map(n => (n.getScore() / v.length)))
         // Use that to find the species distribution of the new population
         let totalFitness = adjustedFitnesses.reduce((sum, val) => val.reduce((c, v) => c + v, 0) + sum, 0)
-        let reproductionDistribution = adjustedFitnesses.map((val) => val.reduce((c,v) => c + v, 0) / totalFitness).map((v) => Math.round(v * populationSize))
+        let reproductionDistribution = (totalFitness > 0) 
+        ? adjustedFitnesses.map((val) => val.reduce((c,v) => c + v, 0) / totalFitness).map((v) => Math.round(v * populationSize))
+        : adjustedFitnesses.map((v) => v.length)
 
         // Cull weak members
         let percentileFitnesses = adjustedFitnesses.map((v) => v[Math.round((v.length - 1) * repPercentile)])
@@ -222,12 +224,9 @@ export const AITrainer = function (config)
         newPopulation.forEach(n => n.generateNetwork())
 
         // Update
-        species = newSpecies.map(s => s.map(nn => nn.getGenome()))
+        species = newSpecies.map(s => s.map(nn => nn.getGenome())).filter(s => s?.length > 0) // Filter extinct
         population = newPopulation
     }
-
-    // Speciates the population and returns each network in an array with other species members
-
 
     // Increment the innovation number and hidden nodes by requested amount and return new innovation number
     function addInnovations(i, h) {

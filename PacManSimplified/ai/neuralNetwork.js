@@ -89,12 +89,17 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
         // Initial pass
         let product = multiply(tmpMask, networkMatrix)
         tmpMask = activateAndRemask(product, tmpMask)
+        let passes = 0  // TODO: Look into detecting cycles
         // All subsequent passes
-        while (stillImaginary(tmpMask)) {
+        while (stillImaginary(tmpMask) && passes < tmpMask.length) {
             product = multiply(tmpMask, networkMatrix)
             tmpMask = activateAndRemask(product, tmpMask)
         }
 
+        if (passes >= tmpMask.length) {
+            // Lets use our imagination
+            tmpMask = activateAndRemask(product.map(p => p?.re ?? 0), tmpMask)
+        }
 
         // Get final output, add bias, and run through activation function
         let output = multiply(tmpMask, outputMatrix)
