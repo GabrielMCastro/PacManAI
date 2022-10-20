@@ -5,19 +5,19 @@ export const m = "m"
 let el = document.getElementById("sim_container")
 let con_bar = document.getElementById("control_bar")
 
-let FRAMERATE = 300,
-    GAMES = new Array(),
-    averageScores = new Array(),
-    generationSummaries = new Array();
+let FRAMERATE = 100,
+    GAMES = new Array();
+    // averageScores = new Array(),
+    // generationSummaries = new Array();
 
 let config = {
-    SimNum: 10,
-    PopulationSize: 50,
-    MaxGens: 400,
+    SimNum: 1,
+    PopulationSize: 20,
+    MaxGens: 100,
     WeightMutationR: .1,
     StructureMutationR: .8,
     StructureMutationSplit: .5,
-    Inputs: 15,
+    Inputs: 10,
     Outputs: 4,
     ReproductionPercentile: .75,
     Compatibility: {
@@ -67,28 +67,34 @@ let checkSims = () => {
             // Get avg score for gen
             let sum = sorted.reduce((curr, val) => curr + val.getScore(), 0)
             let avg = sum / sorted.length
-            averageScores.push(avg)
+            // averageScores.push(avg)
             
+            // Post average score of gen to sidebar
+            let pav = document.createElement('p')
+            let gen = AI.getCurrentGeneration()
+            pav.innerHTML = `* Generation ${gen} Avg: ${avg}`
+            // pav.onclick = (e) => {
+            //     console.log(`-- Generation ${gen} Reproducers --`)
+            //     console.log(generationSummaries[gen])
+            // }
+            con_bar.appendChild(pav)
+
             // Generation summary
-            generationSummaries.push({
+            console.log(`-- Generation ${gen} Reproducers --`)
+            console.log({
                 species: AI.getSpecies(),
                 networks: sorted.map(nn => {
                 return {
                     id: nn.getId(),
                     score: nn.getScore(),
                     genome: nn.getGenome(),
+                    matrices: nn.getMatrices()
                 }
             })})
-
-            // Post average score of gen to sidebar
-            let pav = document.createElement('p')
-            let gen = AI.getCurrentGeneration()
-            pav.innerHTML = `* Generation ${gen} Avg: ${avg}`
-            pav.onclick = (e) => {
-                console.log(`-- Generation ${gen} Reproducers --`)
-                console.log(generationSummaries[gen])
-            }
-            con_bar.appendChild(pav)
+            
+            // TESTING
+            // console.log(`-- Generation ${gen} Reproducers --`)
+            // console.log(generationSummaries[gen])
 
             AI.advanceGeneration()
 

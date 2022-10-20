@@ -79,6 +79,7 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
     }
 
     // Accept an input state and return the networks decision
+    // TODO: Add https://github.com/gpujs/gpu.js option to speed this shit up
     function execute(inputs) {
         // Add initial inputs to mask
         let tmpMask = [...mask]
@@ -246,6 +247,14 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
         return genome
     }
 
+    function getMatrices() {
+        return {
+            networkMatrix,
+            outputMatrix,
+            mask
+        }
+    }
+
     return {
         "execute" : execute,
         "setScore" : setScore,
@@ -254,6 +263,7 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
         "getId" : getId,
         "mutateWeights" : mutateWeights,
         "mutateStructure" : mutateStructure,
-        "generateNetwork" : generateNetwork
+        "generateNetwork" : generateNetwork,
+        "getMatrices" : getMatrices
     }
 }

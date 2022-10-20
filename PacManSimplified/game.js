@@ -414,23 +414,43 @@ export const Game = function (fps, render, AI, id) {
         var uY = user.pointToCoord(userPos.y)
         var uX = user.pointToCoord(userPos.x)
 
-        for (var i = 0; i < 3; i++) {
-            var row = []
-            for (var j = 0; j < 3; j++) {
-                var coordVal = mapCopy?.[(uY - 4) + i]?.[(uX - 4) + j]
-                coordVal = coordVal != undefined ? coordVal : 0
-                switch (coordVal) {
-                    case 3:
-                        coordVal = 0
-                        break
-                    case 4:
-                        coordVal = 3
-                        break
-                }
-                row.push(coordVal)
+        // for (var i = 0; i < 2; i++) {
+        //     var row = []
+        //     for (var j = 0; j < 2; j++) {
+        //         var coordVal = mapCopy?.[(uY - 4) + i]?.[(uX - 4) + j]
+        //         coordVal = coordVal != undefined ? coordVal : 0
+        //         switch (coordVal) {
+        //             case 3:
+        //                 coordVal = 0
+        //                 break
+        //             case 4:
+        //                 coordVal = 3
+        //                 break
+        //         }
+        //         row.push(coordVal)
+        //     }
+        //     if 
+        //     input.push(...row)
+        // }
+
+        let getVal = (v) => {
+            let cV = v != undefined ? v : 0
+            switch (cV) {
+                case 3:
+                    return 0
+                    break
+                case 4:
+                    return 3
+                    break
             }
-            input.push(...row)
+            return cV
         }
+
+        // Just front/back, up/down
+        input.push(getVal(mapCopy?.[(uY - 1)]?.[uX]))
+        input.push(getVal(mapCopy?.[(uY + 1)]?.[uX]))
+        input.push(getVal(mapCopy?.[uY]?.[(uX - 1)]))
+        input.push(getVal(mapCopy?.[uY]?.[(uX + 1)]))
 
         for (var i = 0; i < ghostPos.length; i++) {
             input.push(ghostPos[i])
