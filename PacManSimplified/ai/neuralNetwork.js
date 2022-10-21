@@ -14,7 +14,8 @@
  *      4. output activation function
  *      5. returns the global info of the population - input nodes, all hidden nodes, output nodes, innovation numbers
  */
- import {complex, multiply} from "https://dev.jspm.io/mathjs";
+// import { GPU } from "gpu.js"
+import {complex, multiply} from "https://dev.jspm.io/mathjs"; // Add non gpu support
 
 
 export const NeuralNetwork = function (genes, bias, activation, outputActivation, id, getGlobalInfo) 
@@ -24,6 +25,7 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
     let networkMatrix
     let outputMatrix
     let mask
+    // const gpu = new GPU()
 
     // Generate connection matrices from genes
     function generateNetwork() {
@@ -66,9 +68,10 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
         })
 
         // Set mask
+        // All numbers represented by [real, imaginary]
         mask = maskOrder.map((v) => {
-            if (v < (gInfo.outputs + gInfo.inputs)) return 0
-            return complex('i')
+            if (v < (gInfo.outputs + gInfo.inputs)) return [0, 0]
+            return [0, 1]
         })
 
         return {
@@ -79,45 +82,67 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
     }
 
     // Accept an input state and return the networks decision
+    // All numbers represented by [real, imaginary]
     // TODO: Add https://github.com/gpujs/gpu.js option to speed this shit up
     function execute(inputs) {
         // Add initial inputs to mask
         let tmpMask = [...mask]
         for (let i = 0; i < inputs.length; i++) { // TODO: use slice
-            tmpMask[i] = inputs[i]
+            tmpMask[i][0] = inputs[i]
         }
 
         // Initial pass
-        let product = multiply(tmpMask, networkMatrix)
+        let product = multiply([tmpMask], networkMatrix)
         tmpMask = activateAndRemask(product, tmpMask)
         let passes = 0  // TODO: Look into detecting cycles
         // All subsequent passes
         while (stillImaginary(tmpMask) && passes < tmpMask.length) {
-            product = multiply(tmpMask, networkMatrix)
+            passes += 1
+            product = multiply([tmpMask], networkMatrix)
             tmpMask = activateAndRemask(product, tmpMask)
         }
 
         if (passes >= tmpMask.length) {
             // Lets use our imagination
-            tmpMask = activateAndRemask(product.map(p => p?.re ?? 0), tmpMask)
+            tmpMask = activateAndRemask(product.map(p => [p[0], 0]), tmpMask)
         }
 
         // Get final output, add bias, and run through activation function
-        let output = multiply(tmpMask, outputMatrix)
-        let activatedOutput = outputActivation(output.map((v) => v + bias))
+        let output = multiply([tmpMask], outputMatrix)
+        let activatedOutput = outputActivation(output.map((v) => v[0] + bias))
 
         return decision(activatedOutput)
     }
 
+    // Use gpu.js to run in parallel if gpu available
+    // [real, imaginary]
+    function multiply(mask, connections) {
+        const length = connections.length
+        const width = connections[0].length
+        const gpuMultiply = gpu.createKernel(function(m, c, l) {
+            let sum = [0, 0]
+            // thread.y is y pos in output
+            // thread.x is x pos in output
+            for (let i = 0; i < l; i++) {
+                // Real
+                sum[0] += m[this.thread.y][i][0] * c[i][this.thread.x]
+                // Imaginary
+                sum[1] += m[this.thread.y][i][1] * c[i][this.thread.x]
+            }
+            return sum
+        }).setOutput([width, 1])
+
+        return gpuMultiply(mask, connections, length)[0].map(v => [v[0], v[1]])
+    }
+
     // Activate non-imaginary results and update mask
+    // [real, imaginary]
     function activateAndRemask(delta, old) {
         let newM = [...old]
         for (let i = 0; i < delta.length; i++) {
-            if (typeof(old[i]) == "object") {
-                if (typeof(delta[i]) == "number") {
-                    newM[i] = activation(delta[i] + bias)
-                } else if (typeof(delta[i]) == "object" && delta[i].im == 0) {
-                    newM[i] = activation(delta[i].re + bias)
+            if (old[i][1] != 0) { // Old mask value is imaginary
+                if (delta[i][1] == 0) { // New value is real
+                    newM[i] = [activation(delta[i][0] + bias), 0]
                 }
             }
         }
@@ -127,7 +152,7 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
     // Checks if mask still has any imaginary values
     function stillImaginary(mask) {
         for (let i = 0; i < mask.length; i++) {
-            if (typeof(mask[i]) == "object") return true
+            if (mask[i][1] != 0) return true
         }
         return false
     }
