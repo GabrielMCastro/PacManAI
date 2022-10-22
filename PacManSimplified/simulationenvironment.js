@@ -11,7 +11,7 @@ let FRAMERATE = 100,
     // generationSummaries = new Array();
 
 let config = {
-    SimNum: 1,
+    SimNum: 10,
     PopulationSize: 20,
     MaxGens: 100,
     WeightMutationR: .1,
@@ -25,7 +25,7 @@ let config = {
         c2: 1,
         c3: 1,
         threshold: 1
-    }
+    },
 }
 const AI = AITrainer(config)
 

@@ -22,6 +22,7 @@ import { NeuralNetwork } from "./neuralNetwork.js"
     }
     * ReproductionPercentile
     * Bias
+    * GPUMultiplication
 */
 export const AITrainer = function (config)
 {
@@ -42,6 +43,7 @@ export const AITrainer = function (config)
     }
     let repPercentile = config?.ReproductionPercentile ?? .5
     let bias = config?.Bias ?? 1
+    let gpuMultiplication = config?.GPUMultiplication ?? false
     // Genome Identifier
     let inputs = config?.Inputs ?? 0
     let hidden = 0
@@ -94,18 +96,11 @@ export const AITrainer = function (config)
         let baseGenome = generateGenome()
         for(let i = 0; i < populationSize; i++)
         {
-           let net = NeuralNetwork(!!seedNum ? seedGenes[i % seedNum] : [...baseGenome], bias, activation, outputActivation, `${generations}_${i}`, getGlobalInfo)
+           let net = NeuralNetwork(!!seedNum ? seedGenes[i % seedNum] : [...baseGenome], bias, activation, outputActivation, `${generations}_${i}`, getGlobalInfo, gpuMultiplication)
            net.mutateWeights(1)
            net.generateNetwork()
            population.push(net)
         }
-
-        // population.forEach(nn => console.log({
-        //     id: nn.getId(),
-        //     score: nn.getScore(),
-        //     genome: nn.getGenome(),
-        //     matrices: nn.getMatrices()
-        // }))
     }
 
     // Get the global state of the genome
@@ -315,7 +310,7 @@ export const AITrainer = function (config)
             }
         }
 
-        return NeuralNetwork(genes, bias, activation, outputActivation, `${generations}_${id}`, getGlobalInfo)
+        return NeuralNetwork(genes, bias, activation, outputActivation, `${generations}_${id}`, getGlobalInfo, gpuMultiplication)
     }
 
     // Returns the index of the most recent network assigned to a sim
@@ -368,6 +363,11 @@ export const AITrainer = function (config)
         return population[simCurrentNets[sim]].getId()
     }
 
+    // Returns the score for a specific sim's network
+    function getCurrentNetScore(sim) {
+        return population[simCurrentNets[sim]].getScore()
+    }
+
     return {
         "moveToNext" : moveToNext,
         "advanceGeneration" : advanceGeneration,
@@ -384,6 +384,7 @@ export const AITrainer = function (config)
         "getTopScore" : getTopScore,
         "getPopulationSize" : getPopulationSize,
         "getCurrentNetId" : getCurrentNetId,
-        "getGlobalInfo" : getGlobalInfo
+        "getGlobalInfo" : getGlobalInfo,
+        "getCurrentNetScore" : getCurrentNetScore
     }
 }
