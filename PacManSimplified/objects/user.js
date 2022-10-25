@@ -1,4 +1,4 @@
-import { KEY, LEFT, UP, RIGHT, DOWN, NONE, OBJECTS } from "./definitions.js";
+import { KEY, LEFT, UP, RIGHT, DOWN, NONE, OBJECTS, DYING } from "./definitions.js";
 
 export const User = function (game, map, render) {
     
@@ -8,7 +8,8 @@ export const User = function (game, map, render) {
         due       = null, 
         lives     = null,
         score     = 5,
-        keyMap    = {};
+        keyMap    = {},
+        eatenTimer;
     
     keyMap[KEY.ARROW_LEFT]  = LEFT;
     keyMap[KEY.ARROW_UP]    = UP;
@@ -75,6 +76,19 @@ export const User = function (game, map, render) {
         }
     }
 
+    function getDirection() {
+        switch(due) {
+            case LEFT:
+                return 0
+            case UP:
+                return 1
+            case RIGHT:
+                return 2
+            case DOWN:
+                return 3
+        }
+    }
+
     function keyDown(e) {
         if (typeof keyMap[e.keyCode] !== "undefined") { 
             due = keyMap[e.keyCode];
@@ -129,7 +143,7 @@ export const User = function (game, map, render) {
              (dir === UP || dir === DOWN));
     };
 
-    function move(ctx) {
+    function move(ctx, setState) {
         
         var npos        = null, 
             nextWhole   = null, 
@@ -187,6 +201,9 @@ export const User = function (game, map, render) {
             if (block === OBJECTS.PILL) { 
                 game.eatenPill();
             }
+
+            clearTimeout(eatenTimer)
+            eatenTimer = window.setTimeout(() => setState(DYING), 2500);
         }   
                 
         return {
@@ -279,6 +296,7 @@ export const User = function (game, map, render) {
         "resetPosition" : resetPosition,
         "getPosition"   : getPosition,
         "setDirection"  : setDirection,
+        "getDirection"  : getDirection,
         "pointToCoord"  : pointToCoord,
     };
 };

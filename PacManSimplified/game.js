@@ -11,14 +11,14 @@ export const Game = function (fps, render, AI, id) {
         eatenCount   = 0,
         level        = 0,
         tick         = 0,
-        ghostPos, userPos, 
+        ghostPos, userPos, prevUserPos, prevUserDec,
         stateChanged = true,
         timerStart   = null,
         lastTime     = 0,
         ctx          = null,
         timer        = null,
         map          = null,
-        mapI         = 0, 
+        mapI         = 3, 
         user         = null,
         stored       = null,
         networksaved = false,
@@ -163,7 +163,7 @@ export const Game = function (fps, render, AI, id) {
         for (var i = 0, len = ghosts.length; i < len; i += 1) {
             ghostPos.push(ghosts[i].move(ctx));
         }
-        u = user.move(ctx);
+        u = user.move(ctx, setState);
         
         for (var i = 0, len = ghosts.length; i < len; i += 1) {
             redrawBlock(ghostPos[i].old);
@@ -175,7 +175,13 @@ export const Game = function (fps, render, AI, id) {
         }                     
         user.draw(ctx);
         
+        prevUserPos = userPos
         userPos = u["new"];
+        
+        // if (userPos == prevUserPos) {
+        //     user.addScore(-.1)
+        //     AI.setScore(user.theScore(), id)
+        // }
         
         for (var i = 0, len = ghosts.length; i < len; i += 1) {
             if (collided(userPos, ghostPos[i]["new"])) {
@@ -211,8 +217,19 @@ export const Game = function (fps, render, AI, id) {
             if (state === PLAYING) {
                 mainDraw();
                 // Deciding which direction to go
-                var input = getInput();
-                user.setDirection(AI.execute(input, id));
+                // var input = [user.getDirection(), ...getInput()];
+
+                // 0 = straight, 1 = turn right, 2 = turn around, 3 = turn left
+                let decision = (AI.execute(getInput(), id) + user.getDirection()) % 4
+
+                user.setDirection(decision);
+
+                // if (prevUserDec != decision) {
+                //     user.addScore(-.1)
+                //     AI.setScore(user.theScore(), id)
+                // }
+
+                prevUserDec = decision
 
             } else if (state === WAITING && stateChanged) {            
                 stateChanged = false;
@@ -386,19 +403,18 @@ export const Game = function (fps, render, AI, id) {
 
     /** Gets the current state of the map
      *  Wall    = 0 = 0
-     *  Buiscut = 1 = 1
-     *  Empty   = 2 = 2
+     *  Buiscut = 1 = 2
+     *  Empty   = 2 = .5
      *  Block   = 3 = 0
-     *  Pill    = 4 = 3
-     *  Ghost   = -1 if dangerous, 1 if vulnerable
-     *  Pacman  = empty = 2
+     *  Pill    = 4 = 5
+     *  Ghost   = -5 if dangerous, 5 if vulnerable
+     *  Pacman  = empty = 0
      * 
      *  Orients the input around Pacman's perspective in a 3x3 box (9)
-     *  Also returns the position (x,y) of the ghosts (6)
-     */
+     *  (NOT YET) Also returns the distance (d,theta) of the ghosts (6) */
     function getInput()
     {
-        var mapCopy = map.map.clone()
+        let mapCopy = map.getMapClone(mapI)
 
         var ghostPos = [0,0,0,0,0,0]
         // The ghosts positions / trainging without ghosts at first
@@ -407,55 +423,60 @@ export const Game = function (fps, render, AI, id) {
             var gY = ghosts[i].pointToCoord(ghostPos[i].old.y)
             var gX = ghosts[i].pointToCoord(ghostPos[i].old.x)
 
-            mapCopy[gY][gX] = ghosts[i].isVunerable() ? 1 : -1
+            // ghostPos.push(gX, gY)
+
+            mapCopy[gY][gX] = ghosts[i].isVunerable() ? 5 : -5
+        }
+
+        let getVal = (v) => {
+            let cV = v != undefined ? v : 0
+            switch (cV) {
+                case 1:
+                    return 2
+                case 2:
+                    return .5
+                case 3:
+                    return 0
+                case 4:
+                    return 5
+            }
+            return cV
         }
 
         var input = []
         var uY = user.pointToCoord(userPos.y)
         var uX = user.pointToCoord(userPos.x)
+        var due = user.getDirection()
 
-        // for (var i = 0; i < 2; i++) {
+        // for (var i = 0; i < 3; i++) {
         //     var row = []
-        //     for (var j = 0; j < 2; j++) {
-        //         var coordVal = mapCopy?.[(uY - 4) + i]?.[(uX - 4) + j]
-        //         coordVal = coordVal != undefined ? coordVal : 0
-        //         switch (coordVal) {
-        //             case 3:
-        //                 coordVal = 0
-        //                 break
-        //             case 4:
-        //                 coordVal = 3
-        //                 break
-        //         }
-        //         row.push(coordVal)
+        //     for (var j = 0; j < 3; j++) {
+        //         row.push(getVal(mapCopy?.[(uY - 1) + i]?.[(uX - 1) + j]))
         //     }
-        //     if 
         //     input.push(...row)
         // }
 
-        let getVal = (v) => {
-            let cV = v != undefined ? v : 0
-            switch (cV) {
-                case 3:
-                    return 0
-                    break
-                case 4:
-                    return 3
-                    break
-            }
-            return cV
+        // Just front/back + 1, up/down + 1
+        let unoriented = []
+        unoriented.push(getVal(mapCopy?.[uY]?.[(uX - 1)]))
+        unoriented.push(getVal(mapCopy?.[(uY - 1)]?.[uX]))
+        unoriented.push(getVal(mapCopy?.[uY]?.[(uX + 1)]))
+        unoriented.push(getVal(mapCopy?.[(uY + 1)]?.[uX]))
+
+        for (let i = 0; i < 4; i++) { // 0, 1, 2, 3
+            input[i] = unoriented[(4 + (i + due)) % 4]//unoriented[(due + i) % 4]
         }
 
-        // Just front/back, up/down
-        input.push(getVal(mapCopy?.[(uY - 1)]?.[uX]))
-        input.push(getVal(mapCopy?.[(uY + 1)]?.[uX]))
-        input.push(getVal(mapCopy?.[uY]?.[(uX - 1)]))
-        input.push(getVal(mapCopy?.[uY]?.[(uX + 1)]))
+        // for (var i = 0; i < ghostPos.length; i++) {
+        //     input.push(ghostPos[i])
+        // }
 
-        for (var i = 0; i < ghostPos.length; i++) {
-            input.push(ghostPos[i])
-        }
+        // console.log(uY, uX)
+        // console.log(mapCopy)
+        // console.log(mapCopy[uY][(uX - 1)], mapCopy[(uY - 1)][uX], mapCopy[uY][(uX + 1)], mapCopy[(uY + 1)][uX])
+        // console.log(uY, uX, due, input)
 
+        // 15 length
         return input
     }
 

@@ -23,6 +23,7 @@ import { NeuralNetwork } from "./neuralNetwork.js"
     * ReproductionPercentile
     * Bias
     * GPUMultiplication
+    * FullyConnected
 */
 export const AITrainer = function (config)
 {
@@ -32,7 +33,7 @@ export const AITrainer = function (config)
     let maxGenerations = config?.MaxGens ?? 1
     let wMutationR = config?.WeightMutationR ?? .25
     let sMutationR = config?.StructureMutationR ?? 1
-    let sMutationSplit = config?.StructureMutationSplit ?? .5
+    let sMutationSplit = config?.StructureMutationSplit ?? -1
     let seedNum = config?.SeedNumber ?? 0
     let compatibilitySpecs = {
         c1: 1,
@@ -44,6 +45,7 @@ export const AITrainer = function (config)
     let repPercentile = config?.ReproductionPercentile ?? .5
     let bias = config?.Bias ?? 1
     let gpuMultiplication = config?.GPUMultiplication ?? false
+    let fullyConnected = config?.FullyConnected ?? true
     // Genome Identifier
     let inputs = config?.Inputs ?? 0
     let hidden = 0
@@ -78,14 +80,22 @@ export const AITrainer = function (config)
         let seedGenes = []
         for (let i = 0; i < seedNum; i++) {
             let rawFile = new XMLHttpRequest()
-            rawFile.open("GET", `http://localhost:8000/ai/seeds/net${i}.txt`, false)
+            rawFile.open("GET", `http://localhost:8000/ai/seeds/net_${i}.txt`, false)
             rawFile.onreadystatechange = () => {
                 if(rawFile.status === 200 || rawFile.status == 0)
                 {
                     let allText = rawFile.responseText;
-                    let genome = allText.replace("[", "").replace("]", "")
+                    let genome = allText.replace(/\[/g, "").replace(/\]/g, "")
                                         .replace(/\"/g, "").split(",")
-                    seedGenes.push(genome)
+                    if (i == 0) {
+                        let global = genome[0].split(".")
+                        innovations = parseInt(global[0])
+                        inputs =  parseInt(global[1])
+                        hidden =  parseInt(global[2])
+                        outputs = parseInt(global[3])
+                    }
+                    let genes = genome.slice(1)
+                    seedGenes.push(genes)
                 }
             }
             rawFile.send(null)
@@ -93,11 +103,11 @@ export const AITrainer = function (config)
         // TODO END
 
         // Generate networks
-        let baseGenome = generateGenome()
+        let baseGenome = fullyConnected ? generateGenome() : []
         for(let i = 0; i < populationSize; i++)
         {
-           let net = NeuralNetwork(!!seedNum ? seedGenes[i % seedNum] : [...baseGenome], bias, activation, outputActivation, `${generations}_${i}`, getGlobalInfo, gpuMultiplication)
-           net.mutateWeights(1)
+           let net = NeuralNetwork(!!seedNum ? seedGenes[i % seedGenes.length] : [...baseGenome], bias, activation, outputActivation, `${generations}_${i}`, getGlobalInfo, gpuMultiplication)
+           net.mutateWeights(!!seedNum ? .1 : 1)
            net.generateNetwork()
            population.push(net)
         }
@@ -263,8 +273,9 @@ export const AITrainer = function (config)
             }
         }
 
+        W[1] = W[1] != 0 ? W[1] : 1
         let c = (((c1 * (E[0] + E[1])) + (c2 * (D[0] + D[1]))) / N) + (c3 * (W[0] / W[1]))
-        return c
+        return !isNaN(c) ? c : 0
     }
 
     // Returns genes aligned on innovation number

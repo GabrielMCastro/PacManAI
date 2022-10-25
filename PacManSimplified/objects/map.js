@@ -61,11 +61,15 @@ export const Map = function (size, render) {
     }
     
     function reset(mapI) {       
-        map    = MAP[mapI].clone();
+        map    = [...MAP[mapI].map(row => [...row])]
         walls = generateWalls(map)
         height = map.length;
         width  = map[0].length;       
     };
+
+    function getMapClone(mapI) {
+        return [...map.map(row => [...row])]
+    }
 
     function block(pos) {
         return map[pos.y][pos.x];
@@ -126,6 +130,7 @@ export const Map = function (size, render) {
             var layout = map[y][x];
 
             if (layout === OBJECTS.PILL) {
+                // map[y][x] = 
                 return;
             }
 
@@ -163,6 +168,6 @@ export const Map = function (size, render) {
         "height"       : height,
         "width"        : width,
         "blockSize"    : blockSize,
-        "map"          : map,
+        "getMapClone"  : getMapClone,
     };
 };

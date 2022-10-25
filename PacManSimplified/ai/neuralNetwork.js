@@ -24,12 +24,14 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
     let genome = genes
     let networkMatrix
     let outputMatrix
+    let maskOrder
     let mask
+    let globalInfo
     // const gpu = new GPU()
 
     // Generate connection matrices from genes
     function generateNetwork() {
-        let gInfo = getGlobalInfo()
+        globalInfo = getGlobalInfo()
         
         let connections = new Array()
         genome.forEach(g => {
@@ -38,7 +40,7 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
         })
 
         // Order of inputs and hidden nodes in mask/matrix
-        let maskOrder = new Array()
+        maskOrder = new Array()
         connections.forEach((c, i) => {
             if (c != null) maskOrder.push(i)
         })
@@ -49,7 +51,7 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
 
         // Output matrix
         outputMatrix = Array.apply(null, Array(maskOrder.length)).map(
-            () => Array.apply(null, Array(gInfo.outputs)).map(() => 0))
+            () => Array.apply(null, Array(globalInfo.outputs)).map(() => 0))
 
         // Populating the weights of the matrices
         connections.forEach((n, i) => {
@@ -57,7 +59,7 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
                 let inputI = maskOrder.indexOf(i) // Get the ith node's index in the mask
                 n.forEach(o => { // for each output of the node
                     if (o.enabled) { // If the connection is enabled
-                        if (o.out < gInfo.outputs) { // If an output node
+                        if (o.out < globalInfo.outputs) { // If an output node
                             outputMatrix[inputI][o.out] = o.weight
                         } else { // Otherwise must be a hidden node
                             networkMatrix[inputI][maskOrder.indexOf(o.out)] = o.weight
@@ -70,13 +72,14 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
         // Set mask
         // All numbers represented by [real, imaginary]
         mask = maskOrder.map((v) => {
-            if (v < (gInfo.outputs + gInfo.inputs)) return gpuMult ? [0, 0] : 0
+            if (v < (globalInfo.outputs + globalInfo.inputs)) return gpuMult ? [0, 0] : 0
             return gpuMult ? [0, 1] : complex('i')
         })
 
         return {
             networkMatrix,
             outputMatrix,
+            maskOrder,
             mask
         }
     }
@@ -86,8 +89,11 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
     function execute(inputs) {
         // Add initial inputs to mask
         let tmpMask = [...mask]
-        for (let i = 0; i < inputs.length; i++) { // TODO: use slice
-            gpuMult ? tmpMask[i][0] = inputs[i] : tmpMask[i] = inputs[i]
+        for (let i = 0; i < mask.length; i++) { // TODO: use slice
+            let mI = maskOrder[i] - globalInfo.outputs
+            if (mI < inputs.length) {
+                gpuMult ? tmpMask[i][0] = inputs[mI] : tmpMask[i] = inputs[mI]
+            }
         }
 
         // Initial pass
@@ -116,6 +122,7 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
     // Use gpu.js to run in parallel if gpu available
     // [real, imaginary]
     function multiply(mask, connections) {
+        if (connections.length == 0) return []
         if (gpuMult) {
             let length = connections.length
             let width = connections[0].length
@@ -191,9 +198,14 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
     function mutateStructure(rate, split, addInnovations)
     {
         if (Math.random() < rate) {
-            if (Math.random() < split) { // If less than the split add a node
+            let gInfo = getGlobalInfo()
+            let { connectedNodes, inputs, outputs } = getConnectionInfo(gInfo)
+            let calculatedSplit = split < 0 ? getAdjustedSplit(inputs, outputs) : split
+
+            if (Math.random() < calculatedSplit) { // If less than the split add a node
+                if (genome.length == 0) return
                 let gI = Math.floor(Math.random() * genome.length) // Select random connection/gene to split
-                let gInfo = getGlobalInfo()
+                
                 let dGInfo = addInnovations(2, 1) // Update global info
                 let newNode = gInfo.outputs + gInfo.inputs + dGInfo.hidden - 1
                 let dna = genome[gI].split(".")
@@ -206,27 +218,7 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
                 genome[gI] = dna.join(".")
                 genome.push(g1, g2)
             } else { // Add connection
-                let gInfo = getGlobalInfo()
                 let weight = Math.floor(Math.random() * 201) - 100
-
-                // Get existing connections so we don't duplicate
-                // Possible input and outputs are selected from existing nodes in the network
-                // Nodes ordered as ...outputs, ...inputs, ...hidden
-                let connectedNodes = []
-                let inputs = []
-                let outputs = []
-                genome.forEach((v) => {
-                    let dna = v.split(".")
-                    let i = parseInt(dna[1]), o = parseInt(dna[2])
-                    inputs.push(i >= gInfo.outputs ? i : -1, o >= gInfo.outputs ? o : -1)
-                    outputs.push((i < gInfo.outputs || i >= gInfo.outputs + gInfo.inputs) ? i : -1, 
-                                 (o < gInfo.outputs || o >= gInfo.outputs + gInfo.inputs) ? o : -1)
-                    if (!!parseInt(dna[4])) {
-                        connectedNodes[i] = [...(connectedNodes[i] ?? []), parseInt(o)]
-                    }
-                })
-                inputs = inputs.filter((v, i, s) => v >= 0 && s.indexOf(v) == i)
-                outputs = outputs.filter((v, i, s) => v >= 0 && s.indexOf(v) == i)
 
                 // Find input and output nodes that aren't already connected
                 let attempts = 0
@@ -248,6 +240,40 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
                 }
             }
         }
+    }
+
+    // Get connections and possible inputs and outputs for new connections
+    function getConnectionInfo(gInfo) {
+        // Get existing connections so we don't duplicate
+        // Possible input and outputs are selected from existing nodes in the network
+        // Nodes ordered as ...outputs, ...inputs, ...hidden
+        let connectedNodes = []
+        let inputs = Array.apply(null, Array(gInfo.inputs)).map((v, i) => i + gInfo.outputs)
+        let outputs = Array.apply(null, Array(gInfo.outputs)).map((v, i) => i)
+
+        genome.forEach((v) => {
+            let dna = v.split(".")
+            let i = parseInt(dna[1]), o = parseInt(dna[2])
+            inputs.push(i >= gInfo.outputs ? i : -1, o >= gInfo.outputs ? o : -1)
+            outputs.push((i < gInfo.outputs || i >= gInfo.outputs + gInfo.inputs) ? i : -1, 
+                            (o < gInfo.outputs || o >= gInfo.outputs + gInfo.inputs) ? o : -1)
+            if (!!parseInt(dna[4])) {
+                connectedNodes[i] = [...(connectedNodes[i] ?? []), parseInt(o)]
+            }
+        })
+        inputs = inputs.filter((v, i, s) => v >= 0 && s.indexOf(v) == i)
+        outputs = outputs.filter((v, i, s) => v >= 0 && s.indexOf(v) == i)
+
+        return {
+            connectedNodes,
+            inputs,
+            outputs
+        }
+    }
+
+    // Adjust the split depending on how many nodes are already connected
+    function getAdjustedSplit(inputs, outputs) {
+        return (genome.length/(inputs.length * outputs.length))
     }
 
     // Mutates the weights of the network

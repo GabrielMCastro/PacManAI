@@ -12,20 +12,21 @@ let FRAMERATE = 100,
 
 let config = {
     SimNum: 10,
-    PopulationSize: 20,
-    MaxGens: 100,
+    PopulationSize: 100,
+    MaxGens: 18,
+    SeedNumber: 100,
     WeightMutationR: .1,
     StructureMutationR: .8,
-    StructureMutationSplit: .5,
-    Inputs: 10,
+    Inputs: 4,
     Outputs: 4,
-    ReproductionPercentile: .75,
+    ReproductionPercentile: .80,
     Compatibility: {
         c1: 1,
         c2: 1,
         c3: 1,
-        threshold: 1
+        threshold: 2
     },
+    FullyConnected: false,
 }
 const AI = AITrainer(config)
 
@@ -45,12 +46,12 @@ function saveGeneration() {
 
     let pop = AI.getPopulation()
 
-    for (let i = 0; i < pop.length; i++) {
+    for (let i = 0; i < 100; i++) {
         var a = document.createElement("a");
         var content = JSON.stringify([gID, pop[i].getGenome()])
         var file = new Blob([content], {type: "text/plain"});
         a.href = URL.createObjectURL(file);
-        a.download = `${pop[i].getId()}.txt`;
+        a.download = `net_${i}.txt`;
         a.click();
     }
 }
@@ -59,7 +60,7 @@ let checkSims = () => {
     if (AI.getCurrentGeneration() >= AI.getMaxGeneration()) {
         saveGeneration()
         clearInterval(checkSimInterval)
-        clearInterval(killPlayersInterval)
+        // clearInterval(killPlayersInterval)
     } else {
         if (AI.isGenerationOver()) {
             let sorted = AI.getPopulation().sort((a,b) => a.getScore() - b.getScore())
@@ -98,18 +99,19 @@ let checkSims = () => {
 
             AI.advanceGeneration()
 
-            clearInterval(killPlayersInterval)
+            // clearInterval(killPlayersInterval)
             for (let i = 0; i < GAMES.length; i++) {
-                if (gen < (config.MaxGens * .33)) {
-                    GAMES[i].setMapI(0)
-                } else if (gen < (config.MaxGens * .66)) {
-                    GAMES[i].setMapI(1)
-                } else {
-                    GAMES[i].setMapI(2)
-                }
+                GAMES[i].setMapI(3)
+                // if (gen < (config.MaxGens * .33)) {
+                //     GAMES[i].setMapI(0)
+                // } else if (gen < (config.MaxGens * .66)) {
+                //     GAMES[i].setMapI(1)
+                // } else {
+                //     GAMES[i].setMapI(2)
+                // }
                 GAMES[i].startNewGame()
             }
-            killPlayersInterval = window.setInterval(killPlayers, 15000)
+            // killPlayersInterval = window.setInterval(killPlayers, 15000)
 
             // Record one generation
             if (AI.getCurrentGeneration() == (AI.getMaxGeneration() - 1)) {
@@ -126,4 +128,4 @@ const killPlayers = () => {
 }
 
 let checkSimInterval = window.setInterval(checkSims, 60000)
-let killPlayersInterval = window.setInterval(killPlayers, 15000)
+// let killPlayersInterval = window.setInterval(killPlayers, 15000)
