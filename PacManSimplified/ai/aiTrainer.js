@@ -9,7 +9,10 @@ import { NeuralNetwork } from "./neuralNetwork.js"
     * WeightMutationR
     * StructureMutationR
     * StructureMutationSplit
+    * DynamicSplitFactor
     * SeedNumber
+    * NewInputs
+    * ProtectStructure
     * Inputs
     * Outputs
     * ActivationFunc
@@ -34,7 +37,10 @@ export const AITrainer = function (config)
     let wMutationR = config?.WeightMutationR ?? .25
     let sMutationR = config?.StructureMutationR ?? 1
     let sMutationSplit = config?.StructureMutationSplit ?? -1
+    let dynamicSplit =  config?.DynamicSplitFactor ?? 1
     let seedNum = config?.SeedNumber ?? 0
+    let newInputs = config?.NewInputs ?? 0
+    let protect = config?.ProtectStructure ?? false
     let compatibilitySpecs = {
         c1: 1,
         c2: 1,
@@ -80,6 +86,10 @@ export const AITrainer = function (config)
         let seedGenes = []
         for (let i = 0; i < seedNum; i++) {
             let rawFile = new XMLHttpRequest()
+            // if (i == 10) i = 14
+            // if (i == 24) i = 26
+            // if (i == 44) i = 53
+            // if (i == 63) i = 191
             rawFile.open("GET", `http://localhost:8000/ai/seeds/net_${i}.txt`, false)
             rawFile.onreadystatechange = () => {
                 if(rawFile.status === 200 || rawFile.status == 0)
@@ -90,11 +100,11 @@ export const AITrainer = function (config)
                     if (i == 0) {
                         let global = genome[0].split(".")
                         innovations = parseInt(global[0])
-                        inputs =  parseInt(global[1])
+                        inputs =  parseInt(global[1]) + newInputs
                         hidden =  parseInt(global[2])
                         outputs = parseInt(global[3])
                     }
-                    let genes = genome.slice(1)
+                    let genes = genome.slice(1).map(g => shiftConnections(g))
                     seedGenes.push(genes)
                 }
             }
@@ -106,11 +116,19 @@ export const AITrainer = function (config)
         let baseGenome = fullyConnected ? generateGenome() : []
         for(let i = 0; i < populationSize; i++)
         {
-           let net = NeuralNetwork(!!seedNum ? seedGenes[i % seedGenes.length] : [...baseGenome], bias, activation, outputActivation, `${generations}_${i}`, getGlobalInfo, gpuMultiplication)
+           let net = NeuralNetwork(!!seedNum ? seedGenes[i % seedGenes.length] : [...baseGenome], bias, activation, outputActivation, `${generations}_${i}`, getGlobalInfo, gpuMultiplication, protect ? innovations : 0)
            net.mutateWeights(!!seedNum ? .1 : 1)
            net.generateNetwork()
            population.push(net)
         }
+    }
+
+    // Shifts existing nodes to accomodate new input nodes
+    function shiftConnections(gene) {
+        let dna = gene.split(".")
+        dna[1] = parseInt(dna[1]) >= (outputs + (inputs - newInputs)) ? parseInt(dna[1]) + newInputs : dna[1]
+        dna[2] = parseInt(dna[2]) >= (outputs + (inputs - newInputs)) ? parseInt(dna[2]) + newInputs : dna[2]
+        return dna.join(".")
     }
 
     // Get the global state of the genome
@@ -230,7 +248,7 @@ export const AITrainer = function (config)
         newPopulation.forEach(n => n.mutateWeights(wMutationR))
 
         // Mutate structure
-        newPopulation.forEach(n => n.mutateStructure(sMutationR, sMutationSplit, addInnovations))
+        newPopulation.forEach(n => n.mutateStructure(sMutationR, sMutationSplit, dynamicSplit, addInnovations))
 
         // Generate networks
         newPopulation.forEach(n => n.generateNetwork())

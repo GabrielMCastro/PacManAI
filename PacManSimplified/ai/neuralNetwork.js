@@ -18,7 +18,7 @@
 import {complex, multiply as mult} from "https://dev.jspm.io/mathjs";
 
 
-export const NeuralNetwork = function (genes, bias, activation, outputActivation, id, getGlobalInfo, gpuMult) 
+export const NeuralNetwork = function (genes, bias, activation, outputActivation, id, getGlobalInfo, gpuMult, protectedInnovations) 
 {
     let score = 0
     let genome = genes
@@ -195,27 +195,27 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
     // Mutates the structure of the network
     // Split defines the probability of adding a node over adding a connection
     // ex: .5 -> 50/50 chance of either, .7 -> 70 (adding a node) / 30 (adding a connection)
-    function mutateStructure(rate, split, addInnovations)
+    function mutateStructure(rate, split, factor, addInnovations)
     {
         if (Math.random() < rate) {
             let gInfo = getGlobalInfo()
             let { connectedNodes, inputs, outputs } = getConnectionInfo(gInfo)
-            let calculatedSplit = split < 0 ? getAdjustedSplit(inputs, outputs) : split
+            let calculatedSplit = split < 0 ? getAdjustedSplit(inputs, outputs) * factor : split
 
             if (Math.random() < calculatedSplit) { // If less than the split add a node
-                if (genome.length == 0) return
-                let gI = Math.floor(Math.random() * genome.length) // Select random connection/gene to split
+                let usableGenome = genome.filter(gene => parseInt(gene.split(".")[0]) > protectedInnovations)
+                if (usableGenome.length == 0) return
                 
                 let dGInfo = addInnovations(2, 1) // Update global info
                 let newNode = gInfo.outputs + gInfo.inputs + dGInfo.hidden - 1
-                let dna = genome[gI].split(".")
+                let dna = usableGenome[Math.floor(Math.random() * usableGenome.length)].split(".") // Select random connection/gene to split
                 dna[4] = 0 // Disable old gene
                 // New genes to connect old input -> new node -> old output
                 let g1 = `${dGInfo.innovations - 1}.${dna[1]}.${newNode}.100.1`, 
                     g2 = `${dGInfo.innovations}.${newNode}.${dna[2]}.${dna[3]}.1`;
                 
                 // Update genome
-                genome[gI] = dna.join(".")
+                genome.map((gene) => gene.split(".")[0] == dna[0] ? dna.join(".") : gene)
                 genome.push(g1, g2)
             } else { // Add connection
                 let weight = Math.floor(Math.random() * 201) - 100
@@ -319,7 +319,8 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
         return {
             networkMatrix,
             outputMatrix,
-            mask
+            mask,
+            maskOrder
         }
     }
 
