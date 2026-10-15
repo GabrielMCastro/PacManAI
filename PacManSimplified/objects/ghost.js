@@ -7,10 +7,12 @@ export const Ghost = function (game, map, colour, fps, render) {
         eatable   = null,
         eaten     = null,
         due       = null;
+
+    let vulnerableTimer
     
     function getNewCoord(dir, current) { 
         
-        var speed  = isVunerable() ? 1 : isHidden() ? 4 : 2,
+        var speed  = isVunerable() ? 1 : isHidden() ? 1 : 1,
             xSpeed = (dir === LEFT && -speed || dir === RIGHT && speed || 0),
             ySpeed = (dir === DOWN && speed || dir === UP && -speed || 0);
     
@@ -58,6 +60,15 @@ export const Ghost = function (game, map, colour, fps, render) {
         position = {"x": 90, "y": 80};
         direction = getRandomDirection();
         due = getRandomDirection();
+        // timer
+        // vulnerableTimer = window.setInterval(() => {
+        //     console.log(eatable)
+        //     if (eatable == null) {
+        //         makeEatable()
+        //     } else {
+        //         eatable = null
+        //     }
+        // }, 5000)
     };
     
     function onWholeSquare(x) {
@@ -193,7 +204,7 @@ export const Ghost = function (game, map, colour, fps, render) {
         return false;
     };
     
-    function move(ctx) {
+    function move(ctx, userPos, i) {
         
         var oldPos = position,
             onGrid = onGridSquare(position),
@@ -234,13 +245,21 @@ export const Ghost = function (game, map, colour, fps, render) {
             position = tmp;
         }
         
-        due = getRandomDirection();
+        due = false ? chasePacman(userPos ?? {x: 0, y: 0}, oldPos ?? {x: 0, y: 0}) : getRandomDirection();
         
         return {
             "new" : position,
             "old" : oldPos
         };
     };
+
+    function chasePacman (uP, nP) {
+        let xD = uP?.x - nP?.x
+        let yD = uP?.y - nP?.y
+        if (xD == 0) return yD > 0 ? DOWN : UP
+        if (yD == 0) return xD > 0 ? RIGHT : LEFT
+        return (direction === LEFT || direction === RIGHT) ? yD > 0 ? DOWN : UP : xD > 0 ? RIGHT : LEFT
+    }
     
     return {
         "eat"         : eat,

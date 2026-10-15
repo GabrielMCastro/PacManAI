@@ -7,10 +7,6 @@
     <!-- <script src="../AI/NeuralNetwork.js"></script>
     <script src="../AI/AITrainer.js"></script> -->
     <!-- <script id="game" src="pacmansimple.js"></script> -->
-    <!-- <script src="https://unpkg.com/gpu.js@latest/dist/gpu-browser.min.js"></script>
-    <script>
-      const gpu = new GPU({ mode: 'cpu' });
-    </script> -->
     <script type="module" src="simulationEnvironment.js"></script>
     <script src="modernizr-1.5.min.js"></script>
     
@@ -35,6 +31,10 @@
         position:absolute;
         visibility:hidden
       }
+      #visbody {
+        display: flex;
+        flex-wrap: wrap;
+      }
       h1 { font-family: BDCartoonShoutRegular; text-align:center; }
       body { font-family:sans-serif; }
       a { text-decoration:none; }
@@ -51,5 +51,6 @@
     <div id="sim_container"></div>
     <div id="control_bar"></div>
   </div>
+  <div id="visbody"></div>
 </body>
 </html>

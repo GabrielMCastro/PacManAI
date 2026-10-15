@@ -209,13 +209,14 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
                 let dGInfo = addInnovations(2, 1) // Update global info
                 let newNode = gInfo.outputs + gInfo.inputs + dGInfo.hidden - 1
                 let dna = usableGenome[Math.floor(Math.random() * usableGenome.length)].split(".") // Select random connection/gene to split
-                dna[4] = 0 // Disable old gene
+                dna[4] = '0' // Disable old gene
+
                 // New genes to connect old input -> new node -> old output
                 let g1 = `${dGInfo.innovations - 1}.${dna[1]}.${newNode}.100.1`, 
                     g2 = `${dGInfo.innovations}.${newNode}.${dna[2]}.${dna[3]}.1`;
                 
                 // Update genome
-                genome.map((gene) => gene.split(".")[0] == dna[0] ? dna.join(".") : gene)
+                genome = genome.map((gene) => gene.split(".")[0] == dna[0] ? dna.join(".") : gene)
                 genome.push(g1, g2)
             } else { // Add connection
                 let weight = Math.floor(Math.random() * 201) - 100
@@ -312,7 +313,7 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
 
     // Get the genes of the network
     function getGenome() {
-        return genome
+        return [...genome]
     }
 
     function getMatrices() {

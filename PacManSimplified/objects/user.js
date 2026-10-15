@@ -1,6 +1,6 @@
 import { KEY, LEFT, UP, RIGHT, DOWN, NONE, OBJECTS, DYING } from "./definitions.js";
 
-export const User = function (game, map, render) {
+export const User = function (game, map, render, setState) {
     
     var position  = null,
         direction = null,
@@ -9,7 +9,7 @@ export const User = function (game, map, render) {
         lives     = null,
         score     = 5,
         keyMap    = {},
-        eatenTimer;
+        eatenTimer, suicideTimer, scoreTimer;
     
     keyMap[KEY.ARROW_LEFT]  = LEFT;
     keyMap[KEY.ARROW_UP]    = UP;
@@ -29,13 +29,17 @@ export const User = function (game, map, render) {
 
     function loseLife() { 
         lives -= 1;
+        if (lives <= 0) {
+            // clearTimeout(suicideTimer)
+            // clearInterval(scoreTimer)
+        }
     };
 
     function getLives() {
         return lives;
     };
 
-    function initUser() {
+    function initUser(setState) {
         score = 0;
         lives = 1//3;
         newLevel();
@@ -44,6 +48,7 @@ export const User = function (game, map, render) {
     function newLevel() {
         resetPosition();
         eaten = 0;
+        // eatenTimer = window.setTimeout(() => setState(DYING), 5000);
     };
     
     function resetPosition() {
@@ -52,9 +57,12 @@ export const User = function (game, map, render) {
         due = LEFT;
     };
     
-    function reset() {
-        initUser();
+    function reset(setState) {
+        initUser(setState);
         resetPosition();
+        // timers
+        // suicideTimer = window.setTimeout(() => setState(DYING), 30000)
+        // scoreTimer = window.setInterval(() => score += 1, 100)
     };        
     
     function setDirection(x)
@@ -203,7 +211,7 @@ export const User = function (game, map, render) {
             }
 
             clearTimeout(eatenTimer)
-            eatenTimer = window.setTimeout(() => setState(DYING), 2500);
+            eatenTimer = window.setTimeout(() => setState(DYING), 5000);
         }   
                 
         return {
@@ -279,7 +287,7 @@ export const User = function (game, map, render) {
         return position
     }
     
-    initUser();
+    initUser(setState);
 
     return {
         "draw"          : draw,

@@ -1,4 +1,4 @@
-import { OBJECTS, MAP, generateWalls } from "./definitions.js";
+import { OBJECTS, MAP, generateWalls, testWalls } from "./definitions.js";
 
 export const Map = function (size, render) {
     
@@ -32,7 +32,7 @@ export const Map = function (size, render) {
             var i, j, p, line;
             
             ctx.strokeStyle = "#0000FF";
-            ctx.lineWidth   = blockSize * .75//5;
+            ctx.lineWidth   = blockSize * .5;
             ctx.lineCap     = "round";
             
             for (var i = 0; i < walls.length; i += 1) {
@@ -62,7 +62,7 @@ export const Map = function (size, render) {
     
     function reset(mapI) {       
         map    = [...MAP[mapI].map(row => [...row])]
-        walls = generateWalls(map)
+        walls = mapI == 1 ? testWalls : generateWalls(map)
         height = map.length;
         width  = map[0].length;       
     };

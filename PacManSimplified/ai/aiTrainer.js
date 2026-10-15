@@ -57,6 +57,7 @@ export const AITrainer = function (config)
     let hidden = 0
     let outputs = config?.Outputs ?? 0
     let innovations = 0
+    let protectedInnovations = 0
     // Activation Functions
     let sigmoid = (x) => (1/(1 + Math.exp(-x)))
     let tanh = (x) => ((Math.exp(x) - Math.exp(-x))/(Math.exp(x) + Math.exp(-x)))
@@ -100,6 +101,7 @@ export const AITrainer = function (config)
                     if (i == 0) {
                         let global = genome[0].split(".")
                         innovations = parseInt(global[0])
+                        if (protect) protectedInnovations = innovations
                         inputs =  parseInt(global[1]) + newInputs
                         hidden =  parseInt(global[2])
                         outputs = parseInt(global[3])
@@ -116,7 +118,7 @@ export const AITrainer = function (config)
         let baseGenome = fullyConnected ? generateGenome() : []
         for(let i = 0; i < populationSize; i++)
         {
-           let net = NeuralNetwork(!!seedNum ? seedGenes[i % seedGenes.length] : [...baseGenome], bias, activation, outputActivation, `${generations}_${i}`, getGlobalInfo, gpuMultiplication, protect ? innovations : 0)
+           let net = NeuralNetwork(!!seedNum ? seedGenes[i % seedGenes.length] : [...baseGenome], bias, activation, outputActivation, `${generations}_${i}`, getGlobalInfo, gpuMultiplication, protectedInnovations)
            net.mutateWeights(!!seedNum ? .1 : 1)
            net.generateNetwork()
            population.push(net)
@@ -339,7 +341,7 @@ export const AITrainer = function (config)
             }
         }
 
-        return NeuralNetwork(genes, bias, activation, outputActivation, `${generations}_${id}`, getGlobalInfo, gpuMultiplication)
+        return NeuralNetwork(genes, bias, activation, outputActivation, `${generations}_${id}`, getGlobalInfo, gpuMultiplication, protectedInnovations)
     }
 
     // Returns the index of the most recent network assigned to a sim
@@ -389,7 +391,7 @@ export const AITrainer = function (config)
 
     // Returns the id for a specific sim's network
     function getCurrentNetId(sim) {
-        return population[simCurrentNets[sim]].getId()
+        return population[simCurrentNets[sim]]?.getId()
     }
 
     // Returns the score for a specific sim's network
