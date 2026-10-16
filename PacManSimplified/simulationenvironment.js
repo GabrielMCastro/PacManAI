@@ -36,7 +36,7 @@ let config = {
     // StructureMutationSplit: 0,
     // NewInputs: 5,
     // ProtectStructure: true,
-    Inputs: 6, //17
+    Inputs: 20, //17
     Outputs: 4,
     ReproductionPercentile: .8,
     Compatibility: {

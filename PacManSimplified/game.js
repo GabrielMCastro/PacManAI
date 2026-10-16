@@ -1,4 +1,4 @@
-import {WAITING, COUNTDOWN, EATEN_PAUSE, DYING, PLAYING, KEY, MAP } from "/objects/definitions.js"
+import {WAITING, COUNTDOWN, EATEN_PAUSE, DYING, PLAYING, KEY, MAP, MAX_SEARCH_DISTANCE } from "/objects/definitions.js"
 import { User } from "/objects/user.js";
 import { Map } from "/objects/map.js"
 import { Ghost } from "/objects/ghost.js";
@@ -510,10 +510,227 @@ export const Game = function (fps, AI, id) {
         return [...input, ghostsEatable ? 1 : 0, ...ghostsInput]
     }
 
+    // map = copy of the current map state
+    // dirTraversing = the direction vector of the current search
+    // curLoc = {"x": x, "y": y} - current location of the search
+    // ghostInfo = [[x, y, eatable], ...] for all ghosts
+    // objDist = [pelDist, ghostDist, pillDist, eatableGhostsDist] - the travel distance from the start of our search to the nearest obj
+    // depth = how many spaces we have traversed
+    function traverseToObjects(map, visited, dirTraversing, curLoc, ghostInfo, objDist, depth) {
+        if (depth > MAX_SEARCH_DISTANCE) return objDist
+
+        // If we've already visited this spot then lets break
+        for (let i = 0; i < visited.length; i++) {
+            if (visited.some(v => v.x === curLoc.x && v.y === curLoc.y)) {
+                return objDist
+            }
+        }
+
+        // 0 = Wall, 1 = Pellet, 2 = Empty, 3 = The ghost house, 4 = Power pill
+        let curSpotValue = map?.[curLoc.y]?.[curLoc.x]
+
+        // If a wall, stop searching in this direction
+        if (curSpotValue == 0  
+            || curSpotValue == undefined
+            || curSpotValue == 3) {
+                return objDist
+            }
+
+       let objDistCopy = [...objDist]
+
+        // Update proximity to pellet or power pill
+        switch (curSpotValue) {
+            case 1:
+                objDistCopy[0] = Math.min(objDist[0], depth)
+                break
+            case 4:
+                objDistCopy[2] = Math.min(objDist[2], depth)
+                break
+        }
+        
+        // Update proximity to ghosts
+        for (let i = 0; i < ghostInfo.length; i++) {
+            let cG = ghostInfo[i]
+            if (cG[0] == curLoc.x && cG[1] == curLoc.y) {
+                if (cG[2]) {
+                    objDistCopy[3] = Math.min(objDist[3], depth)
+                } else if (cG[3]) {
+                    objDistCopy[1] = Math.min(objDist[1], depth)
+                }
+            }
+        }
+
+        // left, up, right, down
+        let dirVectors = [[-1, 0], [0, -1], [1, 0], [0, 1]]
+        // search and then merge the results
+        let mergedObjDist = objDistCopy
+        for (let i = 0; i < dirVectors.length; i++) {
+            // I don't want to navigate to space I just left
+            if ((dirVectors[i][0] + dirTraversing[0]) == 0
+                && (dirVectors[i][1] + dirTraversing[1]) == 0 ) {
+                continue
+            }
+            let newLoc = {
+                "x": curLoc.x + dirVectors[i][0],
+                "y": curLoc.y + dirVectors[i][1]
+            }
+            let searchResults = traverseToObjects(map, [...visited, curLoc], dirVectors[i], newLoc, ghostInfo, objDistCopy, depth + 1)
+
+            for (let j = 0; j < searchResults.length; j++) {
+                if (searchResults[j] < mergedObjDist[j]) {
+                    mergedObjDist[j] = searchResults[j]
+                }
+            }
+        }
+
+        return mergedObjDist
+    }
+
+    // Breadth first version of traverseToObjects, cost grows with tiles reached rather than paths
+    // map = copy of the current map state
+    // start = {"x": x, "y": y} - the space next to pacman to start searching from
+    // blocked = {"x": x, "y": y} - pacman's location, never searched through so we can't loop back behind him
+    // ghostInfo = [[x, y, vulnerable, dangerous], ...] for all ghosts
+    // maxDepth = how many spaces from start to search
+    // Returns [pelDist, ghostDist, pillDist, eatableGhostsDist], Infinity if not found
+    // Distances count start as 0, same as traverseToObjects
+    function bfsToObjects(map, start, blocked, ghostInfo, maxDepth) {
+        let objDist = [Infinity, Infinity, Infinity, Infinity]
+
+        // left, up, right, down
+        let dirVectors = [[-1, 0], [0, -1], [1, 0], [0, 1]]
+
+        let visited = new Set([`${blocked.x},${blocked.y}`])
+        let queue = [{ "x": start.x, "y": start.y, "depth": 0 }]
+
+        // Read through the queue with an index instead of shift() so each dequeue is O(1)
+        for (let q = 0; q < queue.length; q++) {
+            let { x, y, depth } = queue[q]
+            let key = `${x},${y}`
+
+            if (depth > maxDepth || visited.has(key)) continue
+
+            // 0 = Wall, 1 = Pellet, 2 = Empty, 3 = The ghost house, 4 = Power pill
+            let curSpotValue = map?.[y]?.[x]
+
+            // Walls, the ghost house and out of bounds can't be walked through
+            if (curSpotValue == 0
+                || curSpotValue == undefined
+                || curSpotValue == 3) {
+                continue
+            }
+
+            visited.add(key)
+
+            // Spaces come out of the queue in order of distance, so the first find of each object is the nearest
+            switch (curSpotValue) {
+                case 1:
+                    objDist[0] = Math.min(objDist[0], depth)
+                    break
+                case 4:
+                    objDist[2] = Math.min(objDist[2], depth)
+                    break
+            }
+
+            for (let i = 0; i < ghostInfo.length; i++) {
+                let cG = ghostInfo[i]
+                if (cG[0] == x && cG[1] == y) {
+                    if (cG[2]) {
+                        objDist[3] = Math.min(objDist[3], depth)
+                    } else if (cG[3]) {
+                        objDist[1] = Math.min(objDist[1], depth)
+                    }
+                }
+            }
+
+            for (let i = 0; i < dirVectors.length; i++) {
+                queue.push({ "x": x + dirVectors[i][0], "y": y + dirVectors[i][1], "depth": depth + 1 })
+            }
+        }
+
+        return objDist
+    }
+
+
+    // Returns nearest walkable distance from each direction for the following items:
+    // pellets, ghosts, power pills, eatable ghosts.
+    // And then 4 signals indicating if the there is an open space.
+    // Order: left, up, right, down
+    // Input size: 20 signals
+    // Each distance is normalized: 1 - d/maxD
+    // [open, pellets, ghosts, pills, eatable]
+    function getInput() {
+        // Signals
+        let pellets = [], ghostsSig = [], pills = [], vulGhosts = [], open = []
+
+        // left, up, right, down
+        let dirVectors = [[-1, 0], [0, -1], [1, 0], [0, 1]]
+
+        let mapCopy = map.getMapClone(mapI)
+        let curLoc = { "y": user.pointToCoord(userPos.y), "x": user.pointToCoord(userPos.x)}
+
+        let norm = (v) => Math.max(0, (1 - (v/MAX_SEARCH_DISTANCE)))
+
+        let due = user.getDirection()
+
+        let spaceWalkable = (map, userLoc, dir) => {
+            let val = map?.[userLoc.y + dir[1]]?.[userLoc.x + dir[0]]
+
+            if (val == 1 || val == 2 || val == 4) {
+                return 1
+            }
+
+            return 0
+        }
+
+         // Get ghosts location (if we don't already have it)
+         let ghostInfo = []
+         for(let i = 0; i < ghosts.length; i++) {
+            ghostInfo = [
+                [ghosts[i].pointToCoord(ghostPos[i].old.x),
+                ghosts[i].pointToCoord(ghostPos[i].old.y),
+                ghosts[i].isVunerable(),
+                ghosts[i].isDangerous(),
+                ],
+                ...ghostInfo
+            ]
+         }
+
+        // Get item distances
+        for (let i = 0; i < dirVectors.length; i++) {
+            // let searchResults = traverseToObjects(
+            //     mapCopy, 
+            //     [curLoc],
+            //     dirVectors[i], 
+            //     {"x": curLoc.x + dirVectors[i][0], "y": curLoc.y + dirVectors[i][1]}, 
+            //     ghostInfo, 
+            //     [Infinity, Infinity, Infinity, Infinity], 
+            //     0)
+            let searchResults = bfsToObjects(
+                mapCopy,
+                {"x": curLoc.x + dirVectors[i][0], "y": curLoc.y + dirVectors[i][1]},
+                curLoc,
+                ghostInfo,
+                40)            
+            
+            let orientedI = (i - due + 4) % 4    
+            pellets[orientedI] = norm(searchResults[0])
+            ghostsSig[orientedI] = norm(searchResults[1])
+            pills[orientedI] = norm(searchResults[2])
+            vulGhosts[orientedI] = norm(searchResults[3])
+            open[orientedI] = spaceWalkable(mapCopy, curLoc, dirVectors[i])
+        }
+
+        // Determine which headings are open
+        
+
+        return [...open, ...pellets, ...ghostsSig, ...pills, ...vulGhosts]
+    }
+
     // Front, back, top, bottom
     // (d, theta) of nearest pellet
     // (d, theta) of ghosts
-    function getInput() {
+    function getInput4() {
         let mapCopy = map.getMapClone(mapI)
 
         let getVal = (v) => {
