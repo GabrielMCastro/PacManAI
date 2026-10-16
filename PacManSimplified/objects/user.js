@@ -210,8 +210,7 @@ export const User = function (game, map, render, setState) {
                 game.eatenPill();
             }
 
-            clearTimeout(eatenTimer)
-            eatenTimer = window.setTimeout(() => setState(DYING), 5000);
+            game.ateFood();
         }   
                 
         return {

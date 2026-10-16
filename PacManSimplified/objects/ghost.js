@@ -127,19 +127,22 @@ export const Ghost = function (game, map, colour, fps, render) {
         return colour;
     };
 
+    // Expire the eatable/eaten states, called every simulation tick
+    function update() {
+        if (eatable && secondsAgo(eatable) > 8) {
+            eatable = null;
+        }
+        
+        if (eaten && secondsAgo(eaten) > 3) { 
+            eaten = null;
+        }
+    };
+
     function draw(ctx) {
         if (render) {
             var s    = map.blockSize, 
                 top  = (position.y/10) * s,
                 left = (position.x/10) * s;
-        
-            if (eatable && secondsAgo(eatable) > 8) {
-                eatable = null;
-            }
-            
-            if (eaten && secondsAgo(eaten) > 3) { 
-                eaten = null;
-            }
             
             var tl = left + s;
             var base = top + s - 3;
@@ -268,6 +271,7 @@ export const Ghost = function (game, map, colour, fps, render) {
         "makeEatable" : makeEatable,
         "reset"       : reset,
         "move"        : move,
+        "update"      : update,
         "draw"        : draw,
         "pointToCoord" : pointToCoord,
     };

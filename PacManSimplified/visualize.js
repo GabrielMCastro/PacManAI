@@ -26,7 +26,7 @@ rawFile.onreadystatechange = () => {
 }
 rawFile.send(null)
 
-let visualizer = NetworkVisualizer(genes, { innovations, inputs, hidden, outputs })
+let visualizer = NetworkVisualizer(genes, { innovations, inputs, hidden, outputs }, `net_${i}`)
 visualizer.init()
-visualizer.visualize(1010, 800)
+visualizer.visualize(document.getElementById("visbody"), 1010, 800)
 }

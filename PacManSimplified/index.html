@@ -2,55 +2,282 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>HTML5 Pacman</title>
+    <title>PacMan AI</title>
 
-    <!-- <script src="../AI/NeuralNetwork.js"></script>
-    <script src="../AI/AITrainer.js"></script> -->
-    <!-- <script id="game" src="pacmansimple.js"></script> -->
-    <script type="module" src="simulationEnvironment.js"></script>
+    <script type="module" src="simulationenvironment.js"></script>
     <script src="modernizr-1.5.min.js"></script>
-    
+
     <style type="text/css">
-      #sim_container {
+      :root {
+        --bg: #0b0d12;
+        --panel: #141821;
+        --card: #1b2030;
+        --border: #262c3d;
+        --text: #e6e8ee;
+        --muted: #8b93a7;
+        --accent: #facc15;
+        --accent-dim: rgba(250, 204, 21, .15);
+        --radius: 10px;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body { height: 100%; margin: 0; }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 14px;
         display: flex;
-        justify-content: space-around;
-        flex-wrap: wrap;
+        flex-direction: column;
+        overscroll-behavior-x: none;
       }
-      #control_bar {
-        max-width: 342px;
-        border: solid;
-        max-height: 100vh;
-        overflow: scroll;
+
+      /* ---- Header ---- */
+      header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
       }
-      #container {
+      header h1 {
+        margin: 0;
+        font-size: 18px;
+        letter-spacing: .02em;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .logo {
+        width: 18px; height: 18px;
+        border-radius: 50%;
+        background: conic-gradient(var(--bg) 0 45deg, var(--accent) 45deg 315deg, var(--bg) 315deg);
+        transform: rotate(90deg);
+      }
+      #status { color: var(--muted); font-variant-numeric: tabular-nums; }
+      .controls { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+      .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px 6px 6px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--card);
+        color: var(--text);
+        font: inherit;
+        cursor: pointer;
+      }
+      .toggle:hover { border-color: var(--muted); }
+      .toggle-track {
+        width: 32px; height: 18px;
+        border-radius: 999px;
+        background: var(--border);
+        position: relative;
+        transition: background .15s;
+      }
+      .toggle-track::after {
+        content: "";
+        position: absolute;
+        top: 2px; left: 2px;
+        width: 14px; height: 14px;
+        border-radius: 50%;
+        background: var(--text);
+        transition: transform .15s;
+      }
+      .toggle.on .toggle-track { background: var(--accent); }
+      .toggle.on .toggle-track::after { transform: translateX(14px); background: var(--bg); }
+
+      /* ---- Layout ---- */
+      main {
+        flex: 1;
+        min-height: 0;
         display: grid;
-        grid-template-columns: 80% 20%;
+        grid-template-columns: minmax(0, 1fr) 280px;
+        grid-template-rows: auto minmax(390px, 1fr);
+        gap: 16px;
+        padding: 16px 20px 20px;
+        overflow-y: auto;
       }
-      #shim { 
-        font-family: BDCartoonShoutRegular; 
-        position:absolute;
-        visibility:hidden
-      }
-      #visbody {
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
         display: flex;
-        flex-wrap: wrap;
+        flex-direction: column;
+        min-height: 0;
       }
-      h1 { font-family: BDCartoonShoutRegular; text-align:center; }
-      body { font-family:sans-serif; }
-      a { text-decoration:none; }
-      /* width:342px; margin:0px auto; */
+      .panel > h2 {
+        margin: 0;
+        padding: 10px 14px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: var(--muted);
+        border-bottom: 1px solid var(--border);
+      }
+      #games_panel { grid-column: 1; grid-row: 1; }
+      #networks_panel { grid-column: 1; grid-row: 2; }
+      #generations_panel { grid-column: 2; grid-row: 1 / span 2; }
+
+      .strip {
+        display: flex;
+        gap: 12px;
+        padding: 14px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        /* Keep trackpad swipes at the end of the strip from navigating back/forward */
+        overscroll-behavior-x: contain;
+      }
+      .strip::-webkit-scrollbar { height: 10px; }
+      .strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+
+      /* ---- Cards ---- */
+      .sim-card, .vis-card {
+        flex: 0 0 auto;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px;
+      }
+      .sim-card canvas { display: block; border-radius: 4px; }
+      .card-title { font-weight: 600; margin-bottom: 2px; }
+      .card-subtitle {
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 8px;
+        font-variant-numeric: tabular-nums;
+      }
+      .sim-card .card-subtitle { margin: 8px 0 0; }
+      .vis-card svg { display: block; }
+      .vis-card .node { stroke: var(--bg); stroke-width: 1.5px; }
+      .vis-card .link { stroke-opacity: .7; }
+      .vis-card .node-label { fill: var(--text); font-size: 9px; pointer-events: none; }
+
+      .vis-empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--muted);
+        border: 1px dashed var(--border);
+        border-radius: 6px;
+      }
+
+      #visbody { flex: 1; align-items: flex-start; }
+
+      /* ---- Headless progress ---- */
+      #headless_panel {
+        display: none;
+        width: 100%;
+        min-height: 300px;
+        flex-direction: column;
+        justify-content: center;
+        gap: 22px;
+        padding: 20px 40px;
+      }
+      body.headless #sim_container { display: none; }
+      body.headless #headless_panel { display: flex; }
+      .progress-head {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-variant-numeric: tabular-nums;
+      }
+      .progress-head span:last-child { color: var(--muted); }
+      .progress {
+        height: 12px;
+        border-radius: 999px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        overflow: hidden;
+      }
+      .progress > div {
+        height: 100%;
+        width: 0;
+        background: var(--accent);
+        border-radius: 999px;
+        transition: width .2s;
+      }
+      .progress.secondary > div { background: #60a5fa; }
+      #speed_label { color: var(--muted); font-size: 12px; }
+
+      /* ---- Generation list ---- */
+      #generation_list {
+        list-style: none;
+        margin: 0;
+        padding: 10px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      #generation_list:empty::before {
+        content: "Generation results will appear here";
+        color: var(--muted);
+        padding: 4px;
+      }
+      .gen-entry {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      .gen-entry-head { display: flex; justify-content: space-between; margin-bottom: 4px; }
+      .gen-number { font-weight: 600; }
+      .gen-time { color: var(--muted); font-size: 12px; }
+      .gen-stats { display: flex; gap: 14px; color: var(--muted); }
+      .gen-stats b { color: var(--text); font-weight: 600; }
+      .gen-bar { margin-top: 6px; height: 4px; background: var(--border); border-radius: 999px; overflow: hidden; }
+      .gen-bar > div { height: 100%; background: var(--accent); }
     </style>
 
 </head>
 
 <body>
-  
-  <div id="shim">shim for font face</div>
-  <h1>pacman</h1>
-  <div id="container">
-    <div id="sim_container"></div>
-    <div id="control_bar"></div>
-  </div>
-  <div id="visbody"></div>
+  <header>
+    <h1><span class="logo"></span>PacMan AI</h1>
+    <span id="status"></span>
+    <div class="controls">
+      <button id="headless_toggle" class="toggle" aria-pressed="false"
+              title="Train at full CPU speed without rendering">
+        <span class="toggle-track"></span>
+        <span class="toggle-label">Headless off</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section id="games_panel" class="panel">
+      <h2>Simulations</h2>
+      <div id="sim_container" class="strip"></div>
+      <div id="headless_panel">
+        <div>
+          <div class="progress-head"><span>This generation</span><span id="run_progress_label"></span></div>
+          <div class="progress"><div id="run_progress"></div></div>
+        </div>
+        <div>
+          <div class="progress-head"><span>Training</span><span id="gen_progress_label"></span></div>
+          <div class="progress secondary"><div id="gen_progress"></div></div>
+        </div>
+        <span id="speed_label"></span>
+      </div>
+    </section>
+
+    <section id="networks_panel" class="panel">
+      <h2>Current population</h2>
+      <div id="visbody" class="strip"></div>
+    </section>
+
+    <section id="generations_panel" class="panel">
+      <h2>Generations</h2>
+      <ol id="generation_list"></ol>
+    </section>
+  </main>
 </body>
 </html>

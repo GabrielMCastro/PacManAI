@@ -2,9 +2,9 @@ import {complex, multiply} from "https://dev.jspm.io/mathjs";
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm"
 import { NeuralNetwork } from "/ai/neuralNetwork.js"
 
-export const NetworkVisualizer = function (genome, globalInfo) 
+export const NetworkVisualizer = function (genome, globalInfo, id) 
 {
-    let network = NeuralNetwork(genome, 1, () => {}, () => {}, `test`, () => globalInfo, false, false)
+    let network = NeuralNetwork(genome, 1, () => {}, () => {}, id, () => globalInfo, false, false)
     let nodes = new Map()
     let links = []
     let layers = 0
@@ -94,11 +94,24 @@ export const NetworkVisualizer = function (genome, globalInfo)
         return false
     }
 
-    function visualize(width, height) {
+    // Draws the network into a titled card appended to the container element
+    function visualize(container, width, height) {
         let nodeSize = (30 * height) / 800//(width / layers) * .15
-        let lineWidth = 5
+        let lineWidth = 3
         let color = d3.scaleOrdinal(d3.schemeTableau10)
-        let svg = d3.select("#visbody").append("svg").attr("width", width).attr("height", height)
+        let card = d3.select(container).append("div").attr("class", "vis-card")
+        card.append("div").attr("class", "card-title").text(`Network ${network.getId()}`)
+        card.append("div").attr("class", "card-subtitle")
+            .text(`${nodes.size} nodes · ${links.length} connection${links.length == 1 ? "" : "s"}`)
+
+        if (links.length == 0) {
+            card.append("div").attr("class", "vis-empty")
+                .style("width", width + "px").style("height", height + "px")
+                .text("No connections yet")
+            return
+        }
+
+        let svg = card.append("svg").attr("width", width).attr("height", height)
 
         // Get network size
         let netsize = {}
@@ -141,8 +154,8 @@ export const NetworkVisualizer = function (genome, globalInfo)
         .attr("y1", function(n) { return nodes.get(n.source).y; })
         .attr("x2", function(n) { return nodes.get(n.target).x; })
         .attr("y2", function(n) { return nodes.get(n.target).y; })
-        .style("stroke-width", function(n) { return (Math.sqrt(n.weight) * lineWidth); })
-        .style("stroke", function(n) { return n.weight >= 0 ? d3.color("green") : d3.color("red")});
+        .style("stroke-width", function(n) { return (Math.sqrt(Math.abs(n.weight)) * lineWidth); })
+        .style("stroke", function(n) { return n.weight >= 0 ? "#4ade80" : "#f87171"});
 
         // draw nodes
         let node = svg.selectAll(".node")
@@ -159,14 +172,10 @@ export const NetworkVisualizer = function (genome, globalInfo)
 
 
         node.append("text")
-        .attr("dx", -(nodeSize/2) + "px")
+        .attr("class", "node-label")
+        .attr("text-anchor", "middle")
         .attr("dy", ".35em")
         .text(function(n) { return n.id; });
-
-        svg.append("text")
-        .attr("x", 0)
-        .attr("y", 15)
-        .text(function(n) { return network?.getId() })
     }
 
     return {

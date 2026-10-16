@@ -3,7 +3,15 @@ import { User } from "/objects/user.js";
 import { Map } from "/objects/map.js"
 import { Ghost } from "/objects/ghost.js";
 
-export const Game = function (fps, render, AI, id) {
+// Pacman dies if it goes this long without eating
+const STARVE_SECONDS = 5
+
+/**
+ *  A single simulation. Logic and rendering are separate:
+ *      step() - advances the simulation one tick, never touches the canvas
+ *      draw() - paints the current state, skipped while the canvas is off screen
+ */
+export const Game = function (fps, AI, id) {
 
     var state        = WAITING,
         ghosts       = [],
@@ -11,35 +19,28 @@ export const Game = function (fps, render, AI, id) {
         eatenCount   = 0,
         level        = 0,
         tick         = 0,
-        ghostPos, userPos, prevUserPos, prevUserDec,
+        ghostPos     = [], 
+        userPos, prevUserPos, prevUserDec,
         stateChanged = true,
         timerStart   = null,
-        lastTime     = 0,
+        lastFoodTick = 0,
         ctx          = null,
-        timer        = null,
         map          = null,
         mapI         = 1, 
         user         = null,
         stored       = null,
-        networksaved = false,
+        idle         = false,
+        visible      = true,
         canvas,
         stats,
         rec,
-        pacOld,
         wins = 0,
-        FPS = fps;
+        FPS = fps,
+        starveTicks = STARVE_SECONDS * fps;
 
     function getTick() { 
         return tick;
     };
-
-    function drawScore(text, position) {
-        ctx.fillStyle = "#FFFFFF";
-        ctx.font      = "12px BDCartoonShoutRegular";
-        ctx.fillText(text, 
-                     (position["new"]["x"] / 10) * map.blockSize, 
-                     ((position["new"]["y"] + 5) / 10) * map.blockSize);
-    }
     
     function dialog(text) {
         ctx.fillStyle = "#FFFF00";
@@ -60,20 +61,20 @@ export const Game = function (fps, render, AI, id) {
             ghosts[i].reset();
          }
         timerStart = tick;
+        lastFoodTick = tick;
         setState(COUNTDOWN);
     }    
 
     function startNewGame() {
         setState(WAITING);
         level = 1;
-
-        // Updating the stats
-        stats.innerHTML = `Generation: ${AI.getCurrentGeneration()} - ${AI.getNetworkAt()}, Child: ${AI.getCurrentNetId(id)}, Population Size: ${AI.getPopulationSize()}, Highest Score: ${AI.getTopScore()}`//, Wins: ${wins}`
+        idle = false;
          
         user.reset(setState);
         map.reset(mapI);
-        
-        map.draw(ctx);
+
+        userPos = user.getPosition();
+        prevUserPos = userPos;
 
         startLevel();
     }
@@ -84,13 +85,10 @@ export const Game = function (fps, render, AI, id) {
         } else if (e.keyCode === KEY.S) {
             localStorage["soundDisabled"] = !soundDisabled();
         } else if (e.keyCode === KEY.P && state === PAUSE) {
-            map.draw(ctx);
             setState(stored);
         } else if (e.keyCode === KEY.P) {
             stored = state;
             setState(PAUSE);
-            map.draw(ctx);
-            dialog("Paused");
         } else if (state !== PAUSE) {   
             return user.keyDown(e);
         }
@@ -140,50 +138,27 @@ export const Game = function (fps, render, AI, id) {
             ctx.fill();
         }
 
-        ctx.fillStyle = !soundDisabled() ? "#00FF00" : "#FF0000";
-        ctx.font = "bold 16px sans-serif";
-        //ctx.fillText("♪", 10, textBase);
-        ctx.fillText("s", 10, textBase);
-
         ctx.fillStyle = "#FFFF00";
         ctx.font      = "14px BDCartoonShoutRegular";
-        ctx.fillText("Score: " + user.theScore(), 30, textBase);
+        ctx.fillText("Score: " + user.theScore(), 10, textBase);
         ctx.fillText("Level: " + level, 260, textBase);
     }
 
-    function redrawBlock(pos) {
-        map.drawBlock(Math.floor(pos.y/10), Math.floor(pos.x/10), ctx);
-        map.drawBlock(Math.ceil(pos.y/10), Math.ceil(pos.x/10), ctx);
-    }
+    // Move pacman and the ghosts, then resolve collisions
+    function update() { 
 
-    function mainDraw() { 
-
-        var diff, u, i, len, nScore;
+        var u, nScore;
         
         ghostPos = [];
 
         for (var i = 0, len = ghosts.length; i < len; i += 1) {
+            ghosts[i].update();
             ghostPos.push(ghosts[i].move(ctx, prevUserPos, i));
         }
         u = user.move(ctx, setState);
         
-        for (var i = 0, len = ghosts.length; i < len; i += 1) {
-            redrawBlock(ghostPos[i].old);
-        }
-        redrawBlock(u.old);
-        
-        for (var i = 0, len = ghosts.length; i < len; i += 1) {
-            ghosts[i].draw(ctx);
-        }                     
-        user.draw(ctx);
-        
         prevUserPos = userPos
         userPos = u["new"];
-        
-        // if (userPos == prevUserPos) {
-        //     user.addScore(-.1)
-        //     AI.setScore(user.theScore(), id)
-        // }
         
         for (var i = 0, len = ghosts.length; i < len; i += 1) {
             if (collided(userPos, ghostPos[i]["new"])) {
@@ -191,7 +166,6 @@ export const Game = function (fps, render, AI, id) {
                     ghosts[i].eat();
                     eatenCount += 1;
                     nScore = eatenCount * 50;
-                    drawScore(nScore, ghostPos[i]);
                     user.addScore(nScore);                    
                     setState(EATEN_PAUSE);
                     timerStart = tick;
@@ -203,95 +177,69 @@ export const Game = function (fps, render, AI, id) {
         }                             
     };
 
-    function mainLoop() {
+    // Advance the simulation by one tick
+    function step() {
 
-        var diff;
-
-        if(AI.getCurrentGeneration() < AI.getMaxGeneration())
-        {
-
-            if (state !== PAUSE) { 
-                ++tick;
-            }
-
-            map.drawPills(ctx);
-
-            if (state === PLAYING) {
-                mainDraw();
-                // Deciding which direction to go
-
-                // 0 = straight, 1 = turn right, 2 = turn around, 3 = turn left
-                let decision = (AI.execute(getInput(), id) + user.getDirection()) % 4
-                // console.log(getInput())
-
-                user.setDirection(decision);
-
-                // if (prevUserDec != decision) {
-                //     user.addScore(-.1)
-                //     AI.setScore(user.theScore(), id)
-                // }
-
-                // prevUserDec = decision
-
-            } else if (state === WAITING && stateChanged) {            
-                stateChanged = false;
-                map.draw(ctx);
-
-                if (!AI.isGenerationOver()) {
-                    startNewGame();
-                } else {
-                    if (rec && rec.state == "recording") {
-                        rec.stop()
-                    }
-                }
-                // dialog("Press N to start a New game");
-            } else if (state === EATEN_PAUSE /*&& 
-                    (tick - timerStart) > (FPS / 3)*/) {
-                map.draw(ctx);
-                setState(PLAYING);
-            } else if (state === DYING) {
-                redrawBlock(userPos);
-                for (var i = 0, len = ghosts.length; i < len; i += 1) {
-                    redrawBlock(ghostPos[i].old);
-                    ghostPos.push(ghosts[i].draw(ctx));
-                }  
-                loseLife();
-                // if (tick - timerStart > (FPS * 2)) { 
-                //     loseLife();
-                // } else { 
-                //     redrawBlock(userPos);
-                //     for (var i = 0, len = ghosts.length; i < len; i += 1) {
-                //         redrawBlock(ghostPos[i].old);
-                //         ghostPos.push(ghosts[i].draw(ctx));
-                //     }                                   
-                //     user.drawDead(ctx, (tick - timerStart) / (FPS * 2));
-                // }
-            } else if (state === COUNTDOWN) {
-                map.draw(ctx);
-                setState(PLAYING);
-                // diff = 5 + Math.floor((timerStart - tick) / FPS);
-                
-                // if (diff === 0) {
-                //     map.draw(ctx);
-                //     setState(PLAYING);
-                // } else {
-                //     if (diff !== lastTime) { 
-                //         lastTime = diff;
-                //         map.draw(ctx);
-                //         dialog("Starting in: " + diff);
-                //     }
-                // }
-            } 
-
-            drawFooter();
-        }else
-        {
-            if(!networksaved)
-            {
-                // AI.saveTopNetwork(savename, 'text/plain')
-                networksaved = !networksaved
-            }
+        if (AI.getCurrentGeneration() >= AI.getMaxGeneration()) {
+            return;
         }
+
+        if (state !== PAUSE) { 
+            ++tick;
+        }
+
+        if (state === PLAYING) {
+            update();
+
+            // Deciding which direction to go
+            // 0 = straight, 1 = turn right, 2 = turn around, 3 = turn left
+            let decision = (AI.execute(getInput(), id) + user.getDirection()) % 4
+
+            user.setDirection(decision);
+
+            if (state === PLAYING && (tick - lastFoodTick) > starveTicks) {
+                setState(DYING);
+            }
+
+        } else if (state === WAITING && stateChanged) {            
+            stateChanged = false;
+
+            if (!AI.isGenerationOver()) {
+                startNewGame();
+            } else {
+                idle = true;
+                if (rec && rec.state == "recording") {
+                    rec.stop()
+                }
+            }
+        } else if (state === EATEN_PAUSE) {
+            setState(PLAYING);
+        } else if (state === DYING) {
+            loseLife();
+        } else if (state === COUNTDOWN) {
+            setState(PLAYING);
+        } 
+    }
+
+    // Paint the current state of the simulation
+    function draw() {
+        if (!visible && !(rec && rec.state == "recording")) {
+            return;
+        }
+
+        map.draw(ctx);
+        map.drawPills(ctx);
+        for (var i = 0, len = ghosts.length; i < len; i += 1) {
+            ghosts[i].draw(ctx);
+        }
+        user.draw(ctx);
+        drawFooter();
+
+        if (state === PAUSE) {
+            dialog("Paused");
+        }
+
+        stats.textContent = idle ? "Waiting for generation to finish" : `Network ${AI.getCurrentNetId(id)}`
     }
 
     function eatenPill() {
@@ -300,6 +248,10 @@ export const Game = function (fps, render, AI, id) {
         for (var i = 0; i < ghosts.length; i += 1) {
             ghosts[i].makeEatable(ctx);
         }        
+    };
+
+    function ateFood() {
+        lastFoodTick = tick;
     };
     
     function completedLevel() {
@@ -324,7 +276,7 @@ export const Game = function (fps, render, AI, id) {
     
     function init(wrapper) {
         
-        var i, len, ghost,
+        var ghost,
             blockSize = 342 / 19;
         
         canvas = document.createElement("canvas")
@@ -332,55 +284,46 @@ export const Game = function (fps, render, AI, id) {
         canvas.setAttribute("height", (blockSize * 22) + 30 + "px");
         canvas.setAttribute("id", id)
 
-        // var networkCanvas = document.createElement("canvas")
-        // networkCanvas.setAttribute("height", (blockSize * 22) + 30 + "px")
-        // AI.setCanvas(networkCanvas)
+        var card = document.createElement("div");
+        card.className = "sim-card"
 
-        var wrapperDiv = document.createElement("div");
-        wrapperDiv.style.width = (blockSize * 19) + "px"
-        wrapperDiv.appendChild(canvas)
-        stats = document.createElement('p')
-        wrapperDiv.appendChild(stats)
+        var title = document.createElement("div")
+        title.className = "card-title"
+        title.textContent = `Sim ${id}`
+        stats = document.createElement("div")
+        stats.className = "card-subtitle"
 
-        wrapper.appendChild(wrapperDiv);
+        card.appendChild(title)
+        card.appendChild(canvas)
+        card.appendChild(stats)
+        wrapper.appendChild(card);
 
         ctx  = canvas.getContext('2d');
 
-        map   = Map(blockSize, render);
+        // Only paint while the canvas is actually on screen
+        new IntersectionObserver(([entry]) => visible = entry.isIntersecting).observe(canvas)
+
+        map   = Map(blockSize, true);
         user  = User({ 
             "completedLevel" : completedLevel, 
-            "eatenPill"      : eatenPill 
-        }, map, render, setState);
+            "eatenPill"      : eatenPill,
+            "ateFood"        : ateFood
+        }, map, true, setState);
 
         for (var i = 0, len = ghostSpecs.length; i < len; i += 1) {
-            ghost = Ghost({"getTick":getTick}, map, ghostSpecs[i], FPS, render);
+            ghost = Ghost({"getTick":getTick}, map, ghostSpecs[i], FPS, true);
             ghosts.push(ghost);
         }
         
-        map.draw(ctx);
-        dialog("Loading ...");
         loaded();
     };
-
-    // function load(arr, callback) { 
-        
-    //     if (arr.length === 0) { 
-    //         callback();
-    //     } else { 
-    //         var x = arr.pop();
-    //         audio.load(x[0], x[1], function() { load(arr, callback); });
-    //     }
-    // };
         
     function loaded() {
 
         startNewGame();
-        // dialog("Press N to Start");
         
         document.addEventListener("keydown", keyDown, true);
         document.addEventListener("keypress", keyPress, true); 
-        
-        timer = window.setInterval(mainLoop, 1000 / FPS);
     };
 
     function recordGeneration() {
@@ -797,8 +740,15 @@ export const Game = function (fps, render, AI, id) {
         mapI = i
     }
     
+    function isIdle() {
+        return idle
+    }
+    
     return {
         "init" : init,
+        "step" : step,
+        "draw" : draw,
+        "isIdle" : isIdle,
         "startNewGame" : startNewGame,
         "recordGeneration" : recordGeneration,
         "killPlayer" : killPlayer,

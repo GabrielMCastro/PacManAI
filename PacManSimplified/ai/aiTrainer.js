@@ -75,6 +75,7 @@ export const AITrainer = function (config)
     let maxScore = 0           // The max score of the current network
     let topNetwork             // The weights for the top network
     let generationOver = false
+    let completedNets = 0      // Number of networks that have finished their run this generation
     let population = []  // The population of Neural Networks
     let species = [] // Population ordered into species
     let simCurrentNets = Array.apply(null, Array(simNum)).map((v, i) => i) // The current network for each simulation
@@ -160,6 +161,7 @@ export const AITrainer = function (config)
     // Increment current network being tested and assign to given sim
     function moveToNext(sim)
     {
+        completedNets += 1
         if(currentNet < (population.length - 1))
         {
             currentNet += 1
@@ -190,6 +192,7 @@ export const AITrainer = function (config)
         currentNet = simNum - 1
         maxScore = 0
         generationOver = false
+        completedNets = 0
         simCurrentNets = simCurrentNets.map((v, i) => i)
         generateNewPopulation()
     }
@@ -373,6 +376,11 @@ export const AITrainer = function (config)
         return maxScore
     }
 
+    // Returns the number of networks that have finished running this generation
+    function getCompletedCount() {
+        return completedNets
+    }
+
     // Returns the population size
     function getPopulationSize()
     {
@@ -414,6 +422,7 @@ export const AITrainer = function (config)
         "crossover" : crossover,
         "getTopScore" : getTopScore,
         "getPopulationSize" : getPopulationSize,
+        "getCompletedCount" : getCompletedCount,
         "getCurrentNetId" : getCurrentNetId,
         "getGlobalInfo" : getGlobalInfo,
         "getCurrentNetScore" : getCurrentNetScore
