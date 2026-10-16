@@ -1,10 +1,24 @@
-import {WAITING, COUNTDOWN, PAUSE, EATEN_PAUSE, DYING, PLAYING, KEY, MAP } from "/objects/definitions.js"
+import {WAITING, COUNTDOWN, EATEN_PAUSE, DYING, PLAYING, KEY, MAP } from "/objects/definitions.js"
 import { User } from "/objects/user.js";
 import { Map } from "/objects/map.js"
 import { Ghost } from "/objects/ghost.js";
 
 // Pacman dies if it goes this long without eating
 const STARVE_SECONDS = 5
+
+const GHOST_COLOURS = ["#00FFDE", "#FF0000", "#FFB8DE", "#FFB847"]
+
+/**
+ *  Training modes, these only change the board, not the network inputs
+ *      pellets - no ghosts, no power pills
+ *      ghosts  - ghosts, no power pills
+ *      power   - ghosts and power pills
+ */
+export const MODES = {
+    pellets: { label: "Pellets only", ghosts: false, powerPills: false },
+    ghosts:  { label: "Ghosts",       ghosts: true,  powerPills: false },
+    power:   { label: "Power pill",   ghosts: true,  powerPills: true },
+}
 
 /**
  *  A single simulation. Logic and rendering are separate:
@@ -13,28 +27,28 @@ const STARVE_SECONDS = 5
  */
 export const Game = function (fps, AI, id) {
 
-    var state        = WAITING,
-        ghosts       = [],
-        ghostSpecs   = [],//"#00FFDE", "#FF0000", "#FFB8DE", "#FFB847"],// "#003300", "#9933FF"],
-        eatenCount   = 0,
+    var state        = WAITING,        // WAITING, COUNTDOWN, PLAYING, EATEN_PAUSE or DYING, see step()
+        ghosts       = [],             // Empty in the pellets only mode
+        mode         = MODES.pellets,  // Training mode, set by setMode()
+        eatenCount   = 0,              // Ghosts eaten since the last power pill, each one is worth 50 more
         level        = 0,
-        tick         = 0,
-        ghostPos     = [], 
-        userPos, prevUserPos, prevUserDec,
-        stateChanged = true,
-        timerStart   = null,
-        lastFoodTick = 0,
+        tick         = 0,              // Simulation time, everything is timed in ticks
+        ghostPos     = [],             // Each ghost's {new, old} position from the last tick
+        userPos, prevUserPos, prevUserDec, // Pacman's position this tick and last tick (prevUserDec is unused)
+        stateChanged = true,           // Set by setState(), lets WAITING run only once per wait
+        timerStart   = null,           // Tick of the last timed event, only read by commented out code
+        lastFoodTick = 0,              // Tick pacman last ate, for starvation
         ctx          = null,
         map          = null,
-        mapI         = 1, 
-        user         = null,
-        stored       = null,
-        idle         = false,
-        visible      = true,
+        mapI         = 1,              // Which map in MAP is played
+        user         = null,           // Pacman
+        idle         = false,          // True when this game is out of networks for the generation
+        visible      = true,           // Whether the canvas is on screen, drawing is skipped if not
         canvas,
-        stats,
-        rec,
-        wins = 0,
+        stats,                         // Text under the canvas
+        rec,                           // MediaRecorder when recording a generation
+        observer,                      // Watches whether the canvas is on screen
+        wins = 0,                      // Levels completed
         FPS = fps,
         starveTicks = STARVE_SECONDS * fps;
 
@@ -71,7 +85,7 @@ export const Game = function (fps, AI, id) {
         idle = false;
          
         user.reset(setState);
-        map.reset(mapI);
+        map.reset(mapI, mode.powerPills);
 
         userPos = user.getPosition();
         prevUserPos = userPos;
@@ -79,17 +93,20 @@ export const Game = function (fps, AI, id) {
         startLevel();
     }
 
+    // Typing in a form field (e.g. the config editor) isn't game input
+    function isTyping(e) {
+        return !!e.target.closest?.("input, textarea, select, dialog")
+    }
+
     function keyDown(e) {
+        if (isTyping(e)) {
+            return true;
+        }
         if (e.keyCode === KEY.N) {
             startNewGame();
         } else if (e.keyCode === KEY.S) {
             localStorage["soundDisabled"] = !soundDisabled();
-        } else if (e.keyCode === KEY.P && state === PAUSE) {
-            setState(stored);
-        } else if (e.keyCode === KEY.P) {
-            stored = state;
-            setState(PAUSE);
-        } else if (state !== PAUSE) {   
+        } else {   
             return user.keyDown(e);
         }
         return true;
@@ -184,9 +201,7 @@ export const Game = function (fps, AI, id) {
             return;
         }
 
-        if (state !== PAUSE) { 
-            ++tick;
-        }
+        ++tick;
 
         if (state === PLAYING) {
             update();
@@ -222,7 +237,7 @@ export const Game = function (fps, AI, id) {
     }
 
     // Paint the current state of the simulation
-    function draw() {
+    function draw(paused) {
         if (!visible && !(rec && rec.state == "recording")) {
             return;
         }
@@ -235,7 +250,7 @@ export const Game = function (fps, AI, id) {
         user.draw(ctx);
         drawFooter();
 
-        if (state === PAUSE) {
+        if (paused) {
             dialog("Paused");
         }
 
@@ -262,13 +277,13 @@ export const Game = function (fps, AI, id) {
         wins += 1 
         setState(DYING);
         // level += 1;
-        map.reset(mapI);
+        map.reset(mapI, mode.powerPills);
         // user.newLevel();
         // startLevel();
     };
 
     function keyPress(e) { 
-        if (state !== WAITING && state !== PAUSE) { 
+        if (state !== WAITING && !isTyping(e)) { 
             e.preventDefault();
             e.stopPropagation();
         }
@@ -276,8 +291,7 @@ export const Game = function (fps, AI, id) {
     
     function init(wrapper) {
         
-        var ghost,
-            blockSize = 342 / 19;
+        var blockSize = 342 / 19;
         
         canvas = document.createElement("canvas")
         canvas.setAttribute("width", (blockSize * 19) + "px");
@@ -301,7 +315,8 @@ export const Game = function (fps, AI, id) {
         ctx  = canvas.getContext('2d');
 
         // Only paint while the canvas is actually on screen
-        new IntersectionObserver(([entry]) => visible = entry.isIntersecting).observe(canvas)
+        observer = new IntersectionObserver(([entry]) => visible = entry.isIntersecting)
+        observer.observe(canvas)
 
         map   = Map(blockSize, true);
         user  = User({ 
@@ -310,11 +325,7 @@ export const Game = function (fps, AI, id) {
             "ateFood"        : ateFood
         }, map, true, setState);
 
-        for (var i = 0, len = ghostSpecs.length; i < len; i += 1) {
-            ghost = Ghost({"getTick":getTick}, map, ghostSpecs[i], FPS, true);
-            ghosts.push(ghost);
-        }
-        
+        setMode(mode);
         loaded();
     };
         
@@ -325,6 +336,17 @@ export const Game = function (fps, AI, id) {
         document.addEventListener("keydown", keyDown, true);
         document.addEventListener("keypress", keyPress, true); 
     };
+
+    // Detach from the page before this game is thrown away (training restarts)
+    function destroy() {
+        document.removeEventListener("keydown", keyDown, true);
+        document.removeEventListener("keypress", keyPress, true);
+        observer.disconnect();
+        if (rec && rec.state == "recording") {
+            rec.onstop = null;
+            rec.stop();
+        }
+    }
 
     function recordGeneration() {
         const chunks = []; // here we will store our recorded media chunks (Blobs)
@@ -739,6 +761,15 @@ export const Game = function (fps, AI, id) {
     function setMapI(i) {
         mapI = i
     }
+
+    // Switch training mode, takes effect from the next startNewGame()
+    function setMode(m) {
+        mode = m
+        ghosts = mode.ghosts
+            ? GHOST_COLOURS.map(colour => Ghost({"getTick":getTick}, map, colour, FPS, true))
+            : []
+        ghostPos = []
+    }
     
     function isIdle() {
         return idle
@@ -746,6 +777,7 @@ export const Game = function (fps, AI, id) {
     
     return {
         "init" : init,
+        "destroy" : destroy,
         "step" : step,
         "draw" : draw,
         "isIdle" : isIdle,
@@ -753,6 +785,7 @@ export const Game = function (fps, AI, id) {
         "recordGeneration" : recordGeneration,
         "killPlayer" : killPlayer,
         "setMapI" : setMapI,
+        "setMode" : setMode,
     };
     
 }

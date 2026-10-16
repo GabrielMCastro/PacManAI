@@ -1,15 +1,20 @@
 import { LEFT, UP, RIGHT, DOWN } from "./definitions.js";
 
+/**
+ *  A ghost. Positions are in tenths of a tile like pacman's (see user.js), ghosts move 1 per tick,
+ *  half pacman's speed. Movement is random, chasing pacman is turned off in move()
+ */
 export const Ghost = function (game, map, colour, fps, render) {
 
-    var position  = null,
-        direction = null,
-        eatable   = null,
-        eaten     = null,
-        due       = null;
+    var position  = null,   // {x, y} in tenths of a tile
+        direction = null,   // Direction currently moving in
+        eatable   = null,   // Tick a power pill made this ghost eatable, null if not eatable
+        eaten     = null,   // Tick this ghost was eaten, null if not. Eaten ghosts are harmless until it expires
+        due       = null;   // Direction to turn to at the next chance
 
-    let vulnerableTimer
+    let vulnerableTimer // Unused
     
+    // Position after one tick of movement in dir
     function getNewCoord(dir, current) { 
         
         var speed  = isVunerable() ? 1 : isHidden() ? 1 : 1,
@@ -36,18 +41,22 @@ export const Ghost = function (game, map, colour, fps, render) {
         return x1 + x2;
     };
     
+    // Can be eaten (a power pill was eaten recently)
     function isVunerable() { 
         return eatable !== null;
     };
     
+    // Kills pacman on contact. Also true while vulnerable, game.js checks isVunerable first
     function isDangerous() {
         return eaten === null;
     };
 
+    // Eaten and harmless, waiting to recover
     function isHidden() { 
         return eatable === null && eaten !== null;
     };
     
+    // A random direction at right angles to the current one
     function getRandomDirection() {
         var moves = (direction === LEFT || direction === RIGHT) 
             ? [UP, DOWN] : [LEFT, RIGHT];
@@ -57,7 +66,7 @@ export const Ghost = function (game, map, colour, fps, render) {
     function reset() {
         eaten = null;
         eatable = null;
-        position = {"x": 90, "y": 80};
+        position = {"x": 90, "y": 80}; // Column 9, row 8, just above the ghost house
         direction = getRandomDirection();
         due = getRandomDirection();
         // timer
@@ -81,6 +90,7 @@ export const Ghost = function (game, map, colour, fps, render) {
             dir === UP && DOWN || UP;
     };
 
+    // Power pill eaten: turn around and become eatable
     function makeEatable() {
         direction = oppositeDirection(direction);
         eatable = game.getTick();
@@ -110,10 +120,12 @@ export const Ghost = function (game, map, colour, fps, render) {
         return onWholeSquare(pos.y) && onWholeSquare(pos.x);
     };
 
+    // Treats 30 ticks as a second whatever the fps is, so this is (ticks since) / 30
     function secondsAgo(tick) { 
         return ((game.getTick() - tick) * (fps / 30)) / fps;
     };
 
+    // Blue while eatable, flashing white for the last 3 "seconds", grey while eaten
     function getColour() { 
         if (eatable) { 
             if (secondsAgo(eatable) > 5) { 
@@ -128,6 +140,7 @@ export const Ghost = function (game, map, colour, fps, render) {
     };
 
     // Expire the eatable/eaten states, called every simulation tick
+    // Eatable lasts 8 "seconds" (240 ticks), eaten lasts 3 (90 ticks)
     function update() {
         if (eatable && secondsAgo(eatable) > 8) {
             eatable = null;
@@ -194,6 +207,7 @@ export const Ghost = function (game, map, colour, fps, render) {
         }
     };
 
+    // Wraps through the tunnel at the left and right edges, returns the new position or false
     function pane(pos) {
 
         if (pos.x >= 190 && direction === RIGHT) { //pos.y === 100 && 
@@ -207,6 +221,8 @@ export const Ghost = function (game, map, colour, fps, render) {
         return false;
     };
     
+    // Move one tick, turning to due where possible and picking a new random direction at walls.
+    // Returns the new and old positions
     function move(ctx, userPos, i) {
         
         var oldPos = position,
@@ -248,6 +264,7 @@ export const Ghost = function (game, map, colour, fps, render) {
             position = tmp;
         }
         
+        // Change false to true to make the ghosts chase pacman
         due = false ? chasePacman(userPos ?? {x: 0, y: 0}, oldPos ?? {x: 0, y: 0}) : getRandomDirection();
         
         return {
@@ -256,6 +273,7 @@ export const Ghost = function (game, map, colour, fps, render) {
         };
     };
 
+    // Direction towards pacman: straight at it if lined up, otherwise turn towards it
     function chasePacman (uP, nP) {
         let xD = uP?.x - nP?.x
         let yD = uP?.y - nP?.y

@@ -10,6 +10,10 @@ export const NetworkVisualizer = function (genome, globalInfo, id)
     let layers = 0
     let boxLayer = -1
 
+    // Work out which layer every node is drawn in. This uses the same trick as the forward pass
+    // (see neuralNetwork.js): hidden nodes start as i and each multiply resolves the nodes whose
+    // inputs are all known, so the pass a node resolves on is its layer. Nodes in a cycle never resolve,
+    // they're drawn in a ring in their own layer (boxLayer)
     function init() {
         network.generateNetwork()
         let { mask, maskOrder, networkMatrix, outputMatrix } = network.getMatrices()

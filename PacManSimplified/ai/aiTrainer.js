@@ -30,35 +30,57 @@ import { NeuralNetwork } from "./neuralNetwork.js"
 */
 export const AITrainer = function (config)
 {
-    // Configured
-    let simNum = config?.SimNum ?? 1
-    let populationSize = config?.PopulationSize ?? 1
-    let maxGenerations = config?.MaxGens ?? 1
-    let wMutationR = config?.WeightMutationR ?? .25
-    let sMutationR = config?.StructureMutationR ?? 1
-    let sMutationSplit = config?.StructureMutationSplit ?? -1
-    let dynamicSplit =  config?.DynamicSplitFactor ?? 1
-    let seedNum = config?.SeedNumber ?? 0
-    let newInputs = config?.NewInputs ?? 0
-    let protect = config?.ProtectStructure ?? false
+    // ---- Configured --------------------------------------------------------
+    // Population and run length
+    let simNum = config?.SimNum ?? 1                   // Number of games running side by side, each plays one network at a time
+    let populationSize = config?.PopulationSize ?? 1   // Number of networks in each generation
+    let maxGenerations = config?.MaxGens ?? 1          // Training stops after this many generations
+
+    // Mutation
+    let wMutationR = config?.WeightMutationR ?? .25    // Chance (per gene) that a child's connection weight is replaced with a new random weight in [-1, 1]
+    let sMutationR = config?.StructureMutationR ?? 1   // Chance (per child) of one structural mutation: either adding a node or adding a connection
+    let sMutationSplit = config?.StructureMutationSplit ?? -1 // Chance a structural mutation adds a node rather than a connection.
+                                                              // -1 = dynamic: grows as the network gets more fully connected (see dynamicSplit)
+    let dynamicSplit =  config?.DynamicSplitFactor ?? 1 // Dynamic split only: multiplier on (connections / possible connections).
+                                                        // Lower = prefer adding connections for longer before adding nodes
+
+    // Seeding from saved networks (ai/seeds/net_N.txt)
+    let seedNum = config?.SeedNumber ?? 0              // How many seed files to load into generation 0. 0 = start from scratch
+    let newInputs = config?.NewInputs ?? 0             // Extra input nodes to add on top of the seeded networks. They start unconnected,
+                                                       // hidden node numbers are shifted up to make room (see shiftConnections)
+    let protect = config?.ProtectStructure ?? false    // If true, connections loaded from the seeds are never split by "add node" mutations
+
+    // Speciation: compatibility distance = (c1 * excess + c2 * disjoint) / genes + c3 * average weight difference
     let compatibilitySpecs = {
-        c1: 1,
-        c2: 1,
-        c3: 1,
-        threshold: 1,
+        c1: 1,         // Weight of excess genes (innovations past the end of the other genome)
+        c2: 1,         // Weight of disjoint genes (innovations missing from the other genome, inside its range)
+        c3: 1,         // Weight of the average weight difference of matching genes
+        threshold: 1,  // Networks closer than this to a species' representative join that species
         ...config?.Compatibility
     }
-    let repPercentile = config?.ReproductionPercentile ?? .5
-    let bias = config?.Bias ?? 1
-    let gpuMultiplication = config?.GPUMultiplication ?? false
-    let fullyConnected = config?.FullyConnected ?? true
-    // Genome Identifier
-    let inputs = config?.Inputs ?? 0
-    let hidden = 0
-    let outputs = config?.Outputs ?? 0
-    let innovations = 0
-    let protectedInnovations = 0
-    // Activation Functions
+
+    // Reproduction
+    let repPercentile = config?.ReproductionPercentile ?? .5 // Within each species, only networks at or above this fitness percentile reproduce.
+                                                             // .8 = roughly the top 20%
+
+    // Network
+    let bias = config?.Bias ?? 1                       // Constant added to every node before activation, the same for all nodes and not evolved.
+                                                       // On the outputs it has no effect, softmax ignores a value added to every output
+    let gpuMultiplication = config?.GPUMultiplication ?? false // Use gpu.js for the matrix multiply. Broken, the gpu.js import is commented out
+    let fullyConnected = config?.FullyConnected ?? true // true = generation 0 starts with every input connected to every output,
+                                                        // false = generation 0 starts with no connections at all
+
+    // ---- Genome identifier ---------------------------------------------------
+    // Shared by every network in the population. Node numbers are laid out as
+    //   outputs: 0 .. outputs-1 | inputs: outputs .. outputs+inputs-1 | hidden: after that
+    let inputs = config?.Inputs ?? 0         // Number of input nodes, must match the length of game.js getInput()
+    let hidden = 0                           // Number of hidden nodes ever created across the whole population
+    let outputs = config?.Outputs ?? 0       // Number of output nodes (4: straight, right, back, left)
+    let innovations = 0                      // Global innovation counter, every new connection gets the next number.
+                                             // Matching numbers are how crossover and speciation line genes up between genomes
+    let protectedInnovations = 0             // Genes with an innovation number at or below this are never split (ProtectStructure)
+
+    // ---- Activation functions ------------------------------------------------
     let sigmoid = (x) => (1/(1 + Math.exp(-x)))
     let tanh = (x) => ((Math.exp(x) - Math.exp(-x))/(Math.exp(x) + Math.exp(-x)))
     let softmax = (vect) => {
@@ -67,18 +89,21 @@ export const AITrainer = function (config)
 
         return x
     }
-    let activation = config?.ActivationFunc ?? tanh
-    let outputActivation = config?.OutputActivationFunc ?? softmax
-    // -----------------------------------------------------------
-    let generations = 0        // Number of generations the algorithm has been running
-    let currentNet  = simNum - 1             // The current network being tested
-    let maxScore = 0           // The max score of the current network
-    let topNetwork             // The weights for the top network
-    let generationOver = false
-    let completedNets = 0      // Number of networks that have finished their run this generation
-    let population = []  // The population of Neural Networks
-    let species = [] // Population ordered into species
-    let simCurrentNets = Array.apply(null, Array(simNum)).map((v, i) => i) // The current network for each simulation
+    let activation = config?.ActivationFunc ?? tanh                 // Used on hidden nodes
+    let outputActivation = config?.OutputActivationFunc ?? softmax  // Used on the output layer, the highest output is the move
+
+    // ---- Training state ------------------------------------------------------
+    let generations = 0                // Current generation number, starting at 0
+    let currentNet  = simNum - 1       // Index of the most recently handed out network. The first simNum networks
+                                       // are handed out at the start, one per game, so this starts at simNum - 1
+    let maxScore = 0                   // Highest score any network has reached this generation
+    let topNetwork                     // Unused
+    let generationOver = false         // True once every network has been handed out (some may still be playing)
+    let completedNets = 0              // Number of networks that have finished their run this generation
+    let population = []                // This generation's networks
+    let species = []                   // Last generation's species, as lists of genomes. A random member of each
+                                       // is used as the representative when speciating the next generation
+    let simCurrentNets = Array.apply(null, Array(simNum)).map((v, i) => i) // For each game, the index of the network it's playing
 
     // Initialize
     init()
@@ -92,7 +117,7 @@ export const AITrainer = function (config)
             // if (i == 24) i = 26
             // if (i == 44) i = 53
             // if (i == 63) i = 191
-            rawFile.open("GET", `http://localhost:8000/ai/seeds/net_${i}.txt`, false)
+            rawFile.open("GET", `/ai/seeds/net_${i}.txt`, false)
             rawFile.onreadystatechange = () => {
                 if(rawFile.status === 200 || rawFile.status == 0)
                 {
@@ -107,7 +132,8 @@ export const AITrainer = function (config)
                         hidden =  parseInt(global[2])
                         outputs = parseInt(global[3])
                     }
-                    let genes = genome.slice(1).map(g => shiftConnections(g))
+                    // A network with no connections is saved as an empty list, which parses to [""]
+                    let genes = genome.slice(1).filter(g => g != "").map(g => shiftConnections(g))
                     seedGenes.push(genes)
                 }
             }
@@ -376,6 +402,29 @@ export const AITrainer = function (config)
         return maxScore
     }
 
+    // Returns the configuration in use with defaults filled in. Leaves out the functions
+    // (activation) and GPUMultiplication, which is broken
+    function getConfig() {
+        return {
+            SimNum: simNum,
+            PopulationSize: populationSize,
+            MaxGens: maxGenerations,
+            WeightMutationR: wMutationR,
+            StructureMutationR: sMutationR,
+            StructureMutationSplit: sMutationSplit,
+            DynamicSplitFactor: dynamicSplit,
+            SeedNumber: seedNum,
+            NewInputs: newInputs,
+            ProtectStructure: protect,
+            Inputs: config?.Inputs ?? 0, // As configured, seeding can change the inputs actually used
+            Outputs: config?.Outputs ?? 0,
+            ReproductionPercentile: repPercentile,
+            Compatibility: { ...compatibilitySpecs },
+            Bias: bias,
+            FullyConnected: fullyConnected,
+        }
+    }
+
     // Returns the number of networks that have finished running this generation
     function getCompletedCount() {
         return completedNets
@@ -423,6 +472,7 @@ export const AITrainer = function (config)
         "getTopScore" : getTopScore,
         "getPopulationSize" : getPopulationSize,
         "getCompletedCount" : getCompletedCount,
+        "getConfig" : getConfig,
         "getCurrentNetId" : getCurrentNetId,
         "getGlobalInfo" : getGlobalInfo,
         "getCurrentNetScore" : getCurrentNetScore

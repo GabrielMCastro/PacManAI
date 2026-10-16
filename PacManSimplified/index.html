@@ -37,6 +37,7 @@
       /* ---- Header ---- */
       header {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         gap: 16px;
         padding: 12px 20px;
@@ -58,7 +59,8 @@
         transform: rotate(90deg);
       }
       #status { color: var(--muted); font-variant-numeric: tabular-nums; }
-      .controls { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+      .controls { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+      .divider { width: 1px; height: 22px; background: var(--border); }
 
       .toggle {
         display: inline-flex;
@@ -89,8 +91,146 @@
         background: var(--text);
         transition: transform .15s;
       }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 14px 6px 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--card);
+        color: var(--text);
+        font: inherit;
+        cursor: pointer;
+      }
+      .btn:hover { border-color: var(--muted); }
+      .btn:disabled { opacity: .4; cursor: default; }
+      .btn.on { border-color: var(--accent); background: var(--accent-dim); }
+      .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+      .btn.danger { background: #ef4444; border-color: #ef4444; color: #fff; font-weight: 600; }
+      .btn.primary:hover, .btn.danger:hover { filter: brightness(1.1); }
+      /* Pause bars, turning into a play triangle while paused */
+      .btn-icon {
+        width: 10px; height: 12px;
+        border-left: 3px solid var(--text);
+        border-right: 3px solid var(--text);
+      }
+      .btn.on .btn-icon {
+        width: 0; height: 0;
+        border-style: solid;
+        border-width: 6px 0 6px 10px;
+        border-color: transparent transparent transparent var(--accent);
+      }
+
+      /* Segmented radio group */
+      .segmented {
+        display: inline-flex;
+        margin: 0;
+        padding: 3px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--card);
+      }
+      .segmented legend {
+        position: absolute;
+        width: 1px; height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+      }
+      .segmented input { position: absolute; opacity: 0; pointer-events: none; }
+      .segmented label {
+        padding: 4px 12px;
+        border-radius: 999px;
+        color: var(--muted);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .segmented label:hover { color: var(--text); }
+      .segmented input:checked + label { background: var(--accent); color: var(--bg); font-weight: 600; }
+      .segmented input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+      #mode_note { color: var(--accent); font-size: 12px; }
+
       .toggle.on .toggle-track { background: var(--accent); }
       .toggle.on .toggle-track::after { transform: translateX(14px); background: var(--bg); }
+
+      /* ---- Dialogs ---- */
+      .modal {
+        width: min(440px, calc(100vw - 40px));
+        max-height: calc(100vh - 60px);
+        padding: 0;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--panel);
+        color: var(--text);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+        flex-direction: column;
+      }
+      .modal[open] { display: flex; }
+      .modal.modal-wide { width: min(680px, calc(100vw - 40px)); }
+      .modal::backdrop { background: rgba(0, 0, 0, .6); }
+      .modal-title { margin: 0; padding: 16px 20px 0; font-size: 16px; }
+      .modal-body { padding: 12px 20px; overflow-y: auto; }
+      .modal-body p { margin: 0; color: var(--muted); line-height: 1.5; }
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding: 14px 20px;
+        border-top: 1px solid var(--border);
+      }
+
+      .config-form fieldset {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 16px;
+        margin: 0 0 14px;
+        padding: 0;
+        border: 0;
+      }
+      .config-form legend {
+        padding: 0;
+        margin-bottom: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: var(--muted);
+      }
+      .config-row { display: flex; flex-direction: column; gap: 4px; }
+      .config-row label { font-weight: 500; }
+      .config-row small { color: var(--muted); font-size: 11px; line-height: 1.4; }
+      .config-row input[type=number] {
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--card);
+        color: var(--text);
+        font: inherit;
+        font-variant-numeric: tabular-nums;
+      }
+      .config-row input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+      .config-bool label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+      .config-bool input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+      .config-row .config-error { display: none; color: #f87171; }
+      .config-row.invalid input[type=number] { border-color: #f87171; }
+      .config-row.invalid .config-error { display: block; }
+
+      .toast {
+        position: fixed;
+        right: 20px;
+        bottom: 20px;
+        max-width: 420px;
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        border-left: 3px solid #4ade80;
+        border-radius: 8px;
+        background: var(--card);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
+        transition: opacity .3s;
+        z-index: 10;
+      }
+      .toast.error { border-left-color: #f87171; }
+      .toast.hide { opacity: 0; }
 
       /* ---- Layout ---- */
       main {
@@ -121,7 +261,8 @@
         color: var(--muted);
         border-bottom: 1px solid var(--border);
       }
-      #games_panel { grid-column: 1; grid-row: 1; }
+      /* Never squeeze the canvases, let the page scroll instead */
+      #games_panel { grid-column: 1; grid-row: 1; min-height: auto; }
       #networks_panel { grid-column: 1; grid-row: 2; }
       #generations_panel { grid-column: 2; grid-row: 1 / span 2; }
 
@@ -231,6 +372,17 @@
       .gen-entry-head { display: flex; justify-content: space-between; margin-bottom: 4px; }
       .gen-number { font-weight: 600; }
       .gen-time { color: var(--muted); font-size: 12px; }
+      .gen-mode {
+        display: inline-block;
+        margin-bottom: 6px;
+        padding: 1px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        background: var(--border);
+        color: var(--muted);
+      }
+      .gen-mode-ghosts { background: rgba(248, 113, 113, .15); color: #f87171; }
+      .gen-mode-power { background: rgba(96, 165, 250, .15); color: #60a5fa; }
       .gen-stats { display: flex; gap: 14px; color: var(--muted); }
       .gen-stats b { color: var(--text); font-weight: 600; }
       .gen-bar { margin-top: 6px; height: 4px; background: var(--border); border-radius: 999px; overflow: hidden; }
@@ -244,11 +396,28 @@
     <h1><span class="logo"></span>PacMan AI</h1>
     <span id="status"></span>
     <div class="controls">
+      <span id="mode_note"></span>
+      <fieldset class="segmented" title="Training mode, changes take effect at the next generation">
+        <legend>Training mode</legend>
+        <input type="radio" name="mode" id="mode_pellets" value="pellets" checked>
+        <label for="mode_pellets">Pellets only</label>
+        <input type="radio" name="mode" id="mode_ghosts" value="ghosts">
+        <label for="mode_ghosts">Ghosts</label>
+        <input type="radio" name="mode" id="mode_power" value="power">
+        <label for="mode_power">Power pill</label>
+      </fieldset>
+      <button id="pause_toggle" class="btn" aria-pressed="false" title="Pause or resume training (P)">
+        <span class="btn-icon"></span>
+        <span class="btn-label">Pause</span>
+      </button>
       <button id="headless_toggle" class="toggle" aria-pressed="false"
               title="Train at full CPU speed without rendering">
         <span class="toggle-track"></span>
         <span class="toggle-label">Headless off</span>
       </button>
+      <span class="divider"></span>
+      <button id="save_button" class="btn" title="Save the current generation's networks to ai/seeds">Save networks</button>
+      <button id="config_button" class="btn" title="Edit the training config, restarts training">Config</button>
     </div>
   </header>
 

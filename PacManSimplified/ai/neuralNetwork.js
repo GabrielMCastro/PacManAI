@@ -13,6 +13,19 @@
  *      3. activation function
  *      4. output activation function
  *      5. returns the global info of the population - input nodes, all hidden nodes, output nodes, innovation numbers
+ *
+ *  Node numbering is shared across the population:
+ *      outputs: 0 .. outputs-1 | inputs: outputs .. outputs+inputs-1 | hidden: after that
+ *
+ *  How the forward pass works (execute):
+ *      Every hidden node starts with the value i (the imaginary unit), meaning "not computed yet".
+ *      Multiplying the node values by the connection matrix gives each node's weighted input sum.
+ *      Any connection from an uncomputed node adds an imaginary part to the sum, so a node whose
+ *      sum is purely real has had all of its inputs computed, and it gets activated. Repeating this
+ *      resolves the nodes layer by layer, in the right order, without sorting the graph first.
+ *      A cycle never resolves, so after enough passes the imaginary parts are just dropped.
+ *      Quirk: imaginary parts that cancel out (weights w and -w from two uncomputed nodes)
+ *      make a node look computed too early.
  */
 // import { GPU } from "gpu.js"
 import {complex, multiply as mult} from "https://dev.jspm.io/mathjs";
@@ -20,19 +33,21 @@ import {complex, multiply as mult} from "https://dev.jspm.io/mathjs";
 
 export const NeuralNetwork = function (genes, bias, activation, outputActivation, id, getGlobalInfo, gpuMult, protectedInnovations) 
 {
-    let score = 0
-    let genome = genes
-    let networkMatrix
-    let outputMatrix
-    let maskOrder
-    let mask
-    let globalInfo
+    let score = 0          // Fitness, the game score of this network's run
+    let genome = genes     // Array of gene strings, see the encoding above
+    let networkMatrix      // [from][to] weights between input/hidden nodes, indexed by position in maskOrder
+    let outputMatrix       // [from][output] weights from input/hidden nodes to the output nodes
+    let maskOrder          // Node numbers of every node that has an outgoing connection, in matrix order.
+                           // Nodes without one (e.g. an input that isn't connected yet) aren't in the matrices at all
+    let mask               // Starting value for each node in maskOrder: 0 for inputs, i (uncomputed) for hidden nodes
+    let globalInfo         // Snapshot of the population's node counts, taken when the network is generated
     // const gpu = new GPU()
 
     // Generate connection matrices from genes
     function generateNetwork() {
         globalInfo = getGlobalInfo()
         
+        // connections[fromNode] = list of {out, weight, enabled}, disabled genes are kept but skipped below
         let connections = new Array()
         genome.forEach(g => {
             let gene = g.split(".")
@@ -62,6 +77,8 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
                         if (o.out < globalInfo.outputs) { // If an output node
                             outputMatrix[inputI][o.out] = o.weight
                         } else { // Otherwise must be a hidden node
+                            // A hidden node with no outgoing connections isn't in maskOrder, indexOf gives -1
+                            // and the weight is dropped. That's fine, such a node can't affect the outputs
                             networkMatrix[inputI][maskOrder.indexOf(o.out)] = o.weight
                         }
                     }
@@ -88,6 +105,9 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
     // All numbers represented by [real, imaginary] if using gpu
     function execute(inputs) {
         // Add initial inputs to mask
+        // mI is the node's position in the input array. Hidden nodes give mI >= the number of inputs, so they're
+        // skipped, but only if getInput() returns exactly config.Inputs values. A longer array would overwrite
+        // hidden nodes with input values
         let tmpMask = [...mask]
         for (let i = 0; i < mask.length; i++) { // TODO: use slice
             let mI = maskOrder[i] - globalInfo.outputs
@@ -96,11 +116,12 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
             }
         }
 
-        // Initial pass
+        // Initial pass, resolves the hidden nodes fed only by inputs
         let product = multiply([tmpMask], networkMatrix)
         tmpMask = activateAndRemask(product, tmpMask)
         let passes = 0  // TODO: Look into detecting cycles
-        // All subsequent passes
+        // All subsequent passes, each one resolves the next layer of hidden nodes.
+        // An acyclic network needs at most one pass per node, so hitting the limit means there's a cycle
         while (stillImaginary(tmpMask) && passes < tmpMask.length) {
             passes += 1
             product = multiply([tmpMask], networkMatrix)
@@ -109,6 +130,7 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
 
         if (passes >= tmpMask.length) {
             // Lets use our imagination
+            // Stuck on a cycle: activate the remaining nodes using only the real part of their sums
             tmpMask = activateAndRemask(product.map(p => gpuMult ? [p[0], 0] : p?.re ?? 0), tmpMask)
         }
 
@@ -147,6 +169,8 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
 
     // Activate non-imaginary results and update mask
     // [real, imaginary]
+    // delta is each node's weighted input sum. Only nodes that were still uncomputed (imaginary) and now
+    // have a purely real sum are activated, inputs and already computed nodes keep their values
     function activateAndRemask(delta, old) {
         let newM = [...old]
         for (let i = 0; i < delta.length; i++) {
@@ -182,6 +206,7 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
     }
 
     // Return the index of output with the greatest probability of success
+    // 0 = straight, 1 = turn right, 2 = turn around, 3 = turn left (relative to pacman's direction, see game.js)
     function decision(outputs)
     {
         let decision = 0

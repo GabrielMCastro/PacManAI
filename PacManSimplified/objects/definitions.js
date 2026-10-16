@@ -1,6 +1,7 @@
 /* Human readable keyCode index */
 export var KEY = {'BACKSPACE': 8, 'TAB': 9, 'NUM_PAD_CLEAR': 12, 'ENTER': 13, 'SHIFT': 16, 'CTRL': 17, 'ALT': 18, 'PAUSE': 19, 'CAPS_LOCK': 20, 'ESCAPE': 27, 'SPACEBAR': 32, 'PAGE_UP': 33, 'PAGE_DOWN': 34, 'END': 35, 'HOME': 36, 'ARROW_LEFT': 37, 'ARROW_UP': 38, 'ARROW_RIGHT': 39, 'ARROW_DOWN': 40, 'PRINT_SCREEN': 44, 'INSERT': 45, 'DELETE': 46, 'SEMICOLON': 59, 'WINDOWS_LEFT': 91, 'WINDOWS_RIGHT': 92, 'SELECT': 93, 'NUM_PAD_ASTERISK': 106, 'NUM_PAD_PLUS_SIGN': 107, 'NUM_PAD_HYPHEN-MINUS': 109, 'NUM_PAD_FULL_STOP': 110, 'NUM_PAD_SOLIDUS': 111, 'NUM_LOCK': 144, 'SCROLL_LOCK': 145, 'SEMICOLON': 186, 'EQUALS_SIGN': 187, 'COMMA': 188, 'HYPHEN-MINUS': 189, 'FULL_STOP': 190, 'SOLIDUS': 191, 'GRAVE_ACCENT': 192, 'LEFT_SQUARE_BRACKET': 219, 'REVERSE_SOLIDUS': 220, 'RIGHT_SQUARE_BRACKET': 221, 'APOSTROPHE': 222};
 
+// Deep copy, added to every object. Only used for WALLS at the bottom of this file
 Object.prototype.clone = function () {
     var i, newObj = (this instanceof Array) ? [] : {};
     for (var i in this) {
@@ -35,6 +36,9 @@ Object.prototype.clone = function () {
 	}
 })();
 
+// Directions, the values themselves are arbitrary. The AI uses its own numbering,
+// 0 = LEFT, 1 = UP, 2 = RIGHT, 3 = DOWN (clockwise), see user.js getDirection/setDirection
+// Game states, see game.js step()
 export const NONE = 4,
     UP          = 3,
     LEFT        = 2,
@@ -47,14 +51,16 @@ export const NONE = 4,
     EATEN_PAUSE = 9,
     DYING       = 10;
 
+// Tile values used in the maps below
 export const OBJECTS = {
-    WALL : 0,
-    BISCUIT : 1,
-    EMPTY : 2,
-    BLOCK : 3,
-    PILL : 4
+    WALL : 0,     // Solid
+    BISCUIT : 1,  // Pellet, 10 points
+    EMPTY : 2,    // Walkable, nothing on it (also the tunnel tiles at the edges)
+    BLOCK : 3,    // The ghost house, ghosts can be inside but pacman can't walk on it
+    PILL : 4      // Power pill, 50 points and makes the ghosts eatable
 }
 
+// Unused alternative maps
 export const MAP2 = [
 [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 [0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
@@ -102,6 +108,8 @@ export const MAP2 = [
 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
 ]
 
+// The maps, [row][col] of OBJECTS values, 19 wide by 22 tall. Picked by mapI in game.js (currently map 1).
+// Power pills were commented out in place (1/*, 4*/), POWER_PILLS puts them back in the power pill mode
 export const MAP = [
     [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0],
@@ -216,6 +224,18 @@ export const MAP = [
 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
 ]
 
+// [row, col] of the power pills for each map in MAP, placed in the "power pill" training mode
+export const POWER_PILLS = [
+    [[2, 1], [2, 17], [18, 1], [18, 17]],
+    [[2, 1], [2, 17], [16, 1], [16, 17]],
+    [[2, 1], [2, 17], [19, 1], [19, 17]],
+    [],
+    [],
+]
+
+// Builds the wall outlines drawn by map.js from a map's wall tiles. Starting from every tile it follows
+// runs of walls right and down, and starts new lines where walls branch (see isJoint).
+// Returns a list of paths, each a list of {move}/{line} points in tile coordinates
 export function generateWalls(map) {
     let m = map
     let walls = []
@@ -234,6 +254,7 @@ export function generateWalls(map) {
     return walls
 }
 
+// Extends the path along the wall in direction (dx, dy) until the wall ends or branches
 function followPath(map, path, x, y, dx, dy) {
     let paths = path
     if (map?.[y]?.[x] == 0) {
@@ -260,11 +281,13 @@ function followPath(map, path, x, y, dx, dy) {
     return paths
 }
 
+// A wall tile is a joint if it has wall neighbours both vertically and horizontally (a corner or junction)
 function isJoint(map, x, y) {
     return ((map?.[y + 1]?.[x] == 0) || (map?.[y - 1]?.[x] == 0)) 
     && ((map?.[y]?.[x + 1] == 0) || (map?.[y]?.[x - 1] == 0))
 }
 
+// Hand-drawn wall outlines for map 1, with rounded corners. The other maps use generateWalls
 export const testWalls = [
     
     [{"move": [0, 9.5]}, {"line": [3, 9.5]},
@@ -370,5 +393,6 @@ export const testWalls = [
      {"line": [10.5, 9.5]}]
 ];
 
+// Unused
 export const WALLS = generateWalls(MAP.clone()).map((w, i) => i == 1 ? testWalls : w)
 

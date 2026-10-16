@@ -1,21 +1,27 @@
 import { KEY, LEFT, UP, RIGHT, DOWN, NONE, OBJECTS, DYING } from "./definitions.js";
 
+/**
+ *  Pacman
+ *  Positions are in tenths of a tile: {x: 90, y: 120} is column 9, row 12. Pacman moves 2 per tick,
+ *  so it takes 5 ticks to cross a tile, and can only turn when exactly on a tile (x and y multiples of 10)
+ */
 export const User = function (game, map, render, setState) {
     
-    var position  = null,
-        direction = null,
-        eaten     = null,
-        due       = null, 
+    var position  = null,   // {x, y} in tenths of a tile
+        direction = null,   // Direction currently moving in
+        eaten     = null,   // Biscuits and pills eaten this level
+        due       = null,   // Direction requested (by the AI), taken as soon as that way is open
         lives     = null,
         score     = 5,
-        keyMap    = {},
-        eatenTimer, suicideTimer, scoreTimer;
+        keyMap    = {},     // Arrow key code -> direction
+        eatenTimer, suicideTimer, scoreTimer; // Unused, replaced by tick based starvation in game.js
     
     keyMap[KEY.ARROW_LEFT]  = LEFT;
     keyMap[KEY.ARROW_UP]    = UP;
     keyMap[KEY.ARROW_RIGHT] = RIGHT;
     keyMap[KEY.ARROW_DOWN]  = DOWN;
 
+    // Adds points, and an extra life the first time the score passes 10000
     function addScore(nScore) { 
         score += nScore;
         if (score >= 10000 && score - nScore < 10000) { 
@@ -65,6 +71,7 @@ export const User = function (game, map, render, setState) {
         // scoreTimer = window.setInterval(() => score += 1, 100)
     };        
     
+    // Set the requested direction from the AI's numbering, 0 = LEFT, 1 = UP, 2 = RIGHT, 3 = DOWN (clockwise)
     function setDirection(x)
     {
         switch(x)
@@ -84,6 +91,7 @@ export const User = function (game, map, render, setState) {
         }
     }
 
+    // The requested direction in the AI's numbering, see setDirection
     function getDirection() {
         switch(due) {
             case LEFT:
@@ -107,6 +115,7 @@ export const User = function (game, map, render, setState) {
         return true;
 	};
 
+    // Position after one tick of movement in dir
     function getNewCoord(dir, current) {   
         return {
             "x": current.x + (dir === LEFT && -2 || dir === RIGHT && 2 || 0),
@@ -118,10 +127,12 @@ export const User = function (game, map, render, setState) {
         return x % 10 === 0;
     };
 
+    // Position to tile index, rounded to the nearest tile
     function pointToCoord(x) {
         return Math.round(x/10);
     };
     
+    // The next whole tile position along dir, or x itself if already on a whole tile
     function nextSquare(x, dir) {
         var rem = x % 10;
         if (rem === 0) { 
@@ -133,6 +144,7 @@ export const User = function (game, map, render, setState) {
         }
     };
 
+    // Tile pacman is heading into, as {y, x} tile indexes
     function next(pos, dir) {
         return {
             "y" : pointToCoord(nextSquare(pos.y, dir)),
@@ -144,6 +156,7 @@ export const User = function (game, map, render, setState) {
         return onWholeSquare(pos.y) && onWholeSquare(pos.x);
     };
 
+    // True if both directions are horizontal or both are vertical, reversing is allowed at any time
     function isOnSamePlane(due, dir) { 
         return ((due === LEFT || due === RIGHT) && 
                 (dir === LEFT || dir === RIGHT)) || 
@@ -151,6 +164,8 @@ export const User = function (game, map, render, setState) {
              (dir === UP || dir === DOWN));
     };
 
+    // Move one tick: turn to due if possible, stop at walls, wrap through the tunnel, eat what's ahead.
+    // Returns the new and old positions
     function move(ctx, setState) {
         
         var npos        = null, 
@@ -202,6 +217,7 @@ export const User = function (game, map, render, setState) {
             addScore((block === OBJECTS.BISCUIT) ? 10 : 50);
             eaten += 1;
             
+            // 182 is the number of biscuits on map 1, other maps won't complete at the right time
             if (eaten === 182) {
                 game.completedLevel();
             }
@@ -221,11 +237,14 @@ export const User = function (game, map, render, setState) {
 
     function isMidSquare(x) { 
         var rem = x % 10;
+        // Always true (every number is > 3 or < 7, probably meant &&), so move() eats whatever
+        // biscuit or pill is in the next tile straight away
         var ret = rem > 3 || rem < 7;
         // if (ret) console.log(ret)
         return ret
     };
 
+    // Mouth angles for drawing, opens and closes as pacman crosses each tile
     function calcAngle(dir, pos) { 
         if (dir == RIGHT && (pos.x % 10 < 5)) {
             return {"start":0.25, "end":1.75, "direction": false};

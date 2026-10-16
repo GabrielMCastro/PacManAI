@@ -1,13 +1,16 @@
-import { OBJECTS, MAP, generateWalls, testWalls } from "./definitions.js";
+import { OBJECTS, MAP, POWER_PILLS, generateWalls, testWalls } from "./definitions.js";
 
+/**
+ *  The board: the current state of every tile, and drawing the walls, biscuits and pills
+ */
 export const Map = function (size, render) {
     
-    var height    = null, 
-        width     = null, 
-        blockSize = size,
-        pillSize  = 0,
-        walls = null,
-        map       = null;
+    var height    = null,   // Rows
+        width     = null,   // Columns
+        blockSize = size,   // Size of a tile on the canvas in pixels
+        pillSize  = 0,      // Animation frame for the pulsing power pills
+        walls = null,       // Wall outlines to draw, see generateWalls in definitions.js
+        map       = null;   // [row][col] of OBJECTS values, a copy of the MAP that gets eaten as pacman moves
     
     function withinBounds(y, x) {
         return y >= 0 && y < height && x >= 0 && x < width;
@@ -17,6 +20,7 @@ export const Map = function (size, render) {
         return withinBounds(pos.y, pos.x) && map[pos.y][pos.x] === OBJECTS.WALL;
     }
     
+    // Pacman can walk here (not a wall, not the ghost house)
     function isFloorSpace(pos) {
         if (!withinBounds(pos.y, pos.x)) {
             return false;
@@ -60,8 +64,12 @@ export const Map = function (size, render) {
         }
     }
     
-    function reset(mapI) {       
+    // Load a fresh copy of map mapI, optionally with power pills
+    function reset(mapI, powerPills) {       
         map    = [...MAP[mapI].map(row => [...row])]
+        if (powerPills) {
+            POWER_PILLS[mapI].forEach(([y, x]) => map[y][x] = OBJECTS.PILL)
+        }
         walls = mapI == 1 ? testWalls : generateWalls(map)
         height = map.length;
         width  = map[0].length;       
@@ -79,6 +87,7 @@ export const Map = function (size, render) {
         map[pos.y][pos.x] = type;
     };
 
+    // Power pills are drawn separately from the other tiles so they can pulse
     function drawPills(ctx) { 
         if (render) {
             if (++pillSize > 30) {
