@@ -37,7 +37,7 @@ export const AITrainer = function (config)
     let maxGenerations = config?.MaxGens ?? 1          // Training stops after this many generations
 
     // Mutation
-    let wMutationR = config?.WeightMutationR ?? .25    // Chance (per gene) that a child's connection weight is replaced with a new random weight in [-1, 1]
+    let wMutationR = config?.WeightMutationR ?? .25    // Chance (per gene) that a child's connection weight mutates: usually a small nudge, sometimes a new random weight in [-1, 1]. See mutateWeights in neuralNetwork.js
     let sMutationR = config?.StructureMutationR ?? 1   // Chance (per child) of one structural mutation: either adding a node or adding a connection
     let sMutationSplit = config?.StructureMutationSplit ?? -1 // Chance a structural mutation adds a node rather than a connection.
                                                               // -1 = dynamic: grows as the network gets more fully connected (see dynamicSplit)
@@ -246,19 +246,28 @@ export const AITrainer = function (config)
 
             // If no species found create a new species
             if (!foundSpecies) {
-                newSpecies.push([population[i]])
+                newSpecies[oldSpeciesRep.length] = [population[i]]
                 oldSpeciesRep.push(population[i].getGenome())
             }
         }
         // Order on score
         newSpecies.forEach(s => s.sort((a, b) => a.getScore() - b.getScore()))
 
+        // Get best member of each species with more than 5 members
+        let elities = []
+        for (let i = 0; i < newSpecies.length; i++) {
+            if (newSpecies[i].length >= 5) {
+                let s = newSpecies[i]
+                elities.push(s[s.length - 1])
+            }
+        }
+
         // Find fitness of each member relative to their species size
         let adjustedFitnesses = newSpecies.map(v => v.map(n => (n.getScore() / v.length)))
         // Use that to find the species distribution of the new population
         let totalFitness = adjustedFitnesses.reduce((sum, val) => val.reduce((c, v) => c + v, 0) + sum, 0)
         let reproductionDistribution = (totalFitness > 0) 
-        ? adjustedFitnesses.map((val) => val.reduce((c,v) => c + v, 0) / totalFitness).map((v) => Math.round(v * populationSize))
+        ? adjustedFitnesses.map((val) => val.reduce((c,v) => c + v, 0) / totalFitness).map((v) => Math.round(v * (populationSize - elities.length)))
         : adjustedFitnesses.map((v) => v.length)
 
         // Cull weak members
@@ -283,10 +292,11 @@ export const AITrainer = function (config)
 
         // Generate networks
         newPopulation.forEach(n => n.generateNetwork())
+        elities.forEach(n => n.generateNetwork())
 
         // Update
         species = newSpecies.map(s => s.map(nn => nn.getGenome())).filter(s => s?.length > 0) // Filter extinct
-        population = [...newPopulation]
+        population = [...newPopulation, ...elities]
     }
 
     // Increment the innovation number and hidden nodes by requested amount and return new innovation number

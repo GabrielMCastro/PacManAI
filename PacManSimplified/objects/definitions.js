@@ -398,5 +398,5 @@ export const WALLS = generateWalls(MAP.clone()).map((w, i) => i == 1 ? testWalls
 
 // Number of steps to take when searching through map from
 // PacMan's position for items
-export const MAX_SEARCH_DISTANCE = 8
+export const MAX_SEARCH_DISTANCE = 10
 

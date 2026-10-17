@@ -1,4 +1,4 @@
-import { Game, MODES } from "./game.js";
+import { Game, MODES, inputCount } from "./game.js";
 import { AITrainer } from "/ai/aiTrainer.js"
 import { NetworkVisualizer } from "/ai/networkVisualizer.js"
 import { confirmDialog, editConfig, toast } from "./dialogs.js"
@@ -29,14 +29,21 @@ let config = {
     SimNum: 10,
     PopulationSize: 200,
     MaxGens: 40,
-    WeightMutationR: .05,
+    WeightMutationR: .65,
     // SeedNumber: 200,
-    // StructureMutationR: .8,
+    StructureMutationR: .2,
     DynamicSplitFactor: .8,
     // StructureMutationSplit: 0,
     // NewInputs: 5,
     // ProtectStructure: true,
-    Inputs: 20, //17
+    // Which optional inputs the networks see, the 4 open space inputs are always included.
+    // Inputs (the node count the trainer needs) is worked out from this in startTraining()
+    InputSignals: {
+        pellets: true,
+        ghosts: true,
+        pills: true,
+        vulnerableGhosts: true,
+    },
     Outputs: 4,
     ReproductionPercentile: .8,
     Compatibility: {
@@ -69,12 +76,21 @@ let headless = false,
 // (Re)start training from the first generation. Returns false and leaves the current run
 // alone if the trainer can't be created (e.g. seed files missing)
 function startTraining(newConfig) {
+    newConfig = { ...newConfig, Inputs: inputCount(newConfig.InputSignals) }
+
     let newAI
     try {
         newAI = AITrainer(newConfig)
     } catch (e) {
         console.error(e)
         toast(`Couldn't start training: ${e.message}`, true)
+        return false
+    }
+
+    // Seeded networks bring their own input count, which has to match what getInput() returns
+    let seededInputs = newAI.getGlobalInfo().inputs
+    if (seededInputs != newConfig.Inputs) {
+        toast(`Couldn't start training: the seeds (plus new inputs) have ${seededInputs} inputs but the selected input signals give ${newConfig.Inputs}`, true)
         return false
     }
 
@@ -89,7 +105,7 @@ function startTraining(newConfig) {
 
     GAMES = []
     for (let i = 0; i < config.SimNum; i++) {
-        const g = Game(FRAMERATE, AI, i)
+        const g = Game(FRAMERATE, AI, i, config.InputSignals)
         g.init(simEl)
         g.setMode(MODES[mode])
         g.startNewGame()
@@ -362,7 +378,8 @@ modeInputs.forEach(input => input.addEventListener("change", () => {
 pauseBtn.addEventListener("click", () => setPaused(!paused))
 
 configBtn.addEventListener("click", async () => {
-    let edited = await editConfig(AI.getConfig(), await getSeedCount())
+    // The trainer doesn't know about InputSignals, so add it for the editor
+    let edited = await editConfig({ ...AI.getConfig(), InputSignals: { ...config.InputSignals } }, await getSeedCount())
     // Keep options the editor doesn't show (e.g. Outputs, activation functions)
     if (edited && startTraining({ ...config, ...edited })) {
         toast("Training restarted with the new config")

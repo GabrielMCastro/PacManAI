@@ -1,4 +1,4 @@
-# PacManAI: Improvement Plan
+# PacManAI: Improvement Plan (10-14-26)
 
 The furthest the project got (see `Demos/ok_runs.mov`): networks learn to move around the maze and eat pellets but never learn to avoid ghosts. This doc covers why, and the planned fixes. See [SUMMARY.md](SUMMARY.md) for how the code works.
 

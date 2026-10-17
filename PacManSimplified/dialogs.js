@@ -8,13 +8,18 @@ const CONFIG_FIELDS = [
         { key: "PopulationSize", label: "Population size", type: "int", min: 1, hint: "Networks per generation" },
         { key: "MaxGens", label: "Generations", type: "int", min: 1, hint: "Training stops after this many" },
     ]},
+    { group: "Inputs", fields: [
+        { key: "InputSignals.pellets", label: "Pellets", type: "bool", hint: "Distance to the nearest pellet in each direction" },
+        { key: "InputSignals.ghosts", label: "Ghosts", type: "bool", hint: "Distance to the nearest dangerous ghost in each direction" },
+        { key: "InputSignals.pills", label: "Power pills", type: "bool", hint: "Distance to the nearest power pill in each direction" },
+        { key: "InputSignals.vulnerableGhosts", label: "Vulnerable ghosts", type: "bool", hint: "Distance to the nearest eatable ghost in each direction. Open space inputs are always included, each signal adds 4 inputs" },
+    ]},
     { group: "Network", fields: [
-        { key: "Inputs", label: "Inputs", type: "int", min: 1, hint: "Must match the length of getInput() in game.js" },
         { key: "FullyConnected", label: "Fully connected", type: "bool", hint: "Start with every input connected to every output, otherwise no connections" },
         { key: "Bias", label: "Bias", type: "number", hint: "Added to every node before activation" },
     ]},
     { group: "Mutation", fields: [
-        { key: "WeightMutationR", label: "Weight mutation rate", type: "number", min: 0, max: 1, hint: "Chance per gene of a new random weight" },
+        { key: "WeightMutationR", label: "Weight mutation rate", type: "number", min: 0, max: 1, hint: "Chance per gene of a weight mutation: 90% a small nudge, 10% a new random weight" },
         { key: "StructureMutationR", label: "Structure mutation rate", type: "number", min: 0, max: 1, hint: "Chance per child of adding a node or a connection" },
         { key: "StructureMutationSplit", label: "Node vs connection split", type: "number", min: -1, max: 1, hint: "Chance a structural mutation adds a node. -1 = dynamic" },
         { key: "DynamicSplitFactor", label: "Dynamic split factor", type: "number", min: 0, hint: "Dynamic split only, lower prefers adding connections for longer" },

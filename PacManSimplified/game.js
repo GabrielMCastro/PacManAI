@@ -1,6 +1,6 @@
 import {WAITING, COUNTDOWN, EATEN_PAUSE, DYING, PLAYING, KEY, MAP, MAX_SEARCH_DISTANCE } from "/objects/definitions.js"
 import { User } from "/objects/user.js";
-import { Map } from "/objects/map.js"
+import { GameMap } from "/objects/map.js"
 import { Ghost } from "/objects/ghost.js";
 
 // Pacman dies if it goes this long without eating
@@ -21,11 +21,23 @@ export const MODES = {
 }
 
 /**
+ *  Optional network inputs, in the order getInput() returns them after the 4 open space inputs.
+ *  Each one is 4 inputs (front, right, back, left). Selected with config.InputSignals,
+ *  e.g. { pellets: true, ghosts: false, ... }
+ */
+export const INPUT_SIGNALS = ["pellets", "ghosts", "pills", "vulnerableGhosts"]
+
+// Number of inputs getInput() returns for a selection, the open space inputs are always included
+export function inputCount(inputSignals) {
+    return 4 + (4 * INPUT_SIGNALS.filter(s => inputSignals?.[s]).length)
+}
+
+/**
  *  A single simulation. Logic and rendering are separate:
  *      step() - advances the simulation one tick, never touches the canvas
  *      draw() - paints the current state, skipped while the canvas is off screen
  */
-export const Game = function (fps, AI, id) {
+export const Game = function (fps, AI, id, inputSignals) {
 
     var state        = WAITING,        // WAITING, COUNTDOWN, PLAYING, EATEN_PAUSE or DYING, see step()
         ghosts       = [],             // Empty in the pellets only mode
@@ -318,7 +330,7 @@ export const Game = function (fps, AI, id) {
         observer = new IntersectionObserver(([entry]) => visible = entry.isIntersecting)
         observer.observe(canvas)
 
-        map   = Map(blockSize, true);
+        map   = GameMap(blockSize, true);
         user  = User({ 
             "completedLevel" : completedLevel, 
             "eatenPill"      : eatenPill,
@@ -519,12 +531,10 @@ export const Game = function (fps, AI, id) {
     function traverseToObjects(map, visited, dirTraversing, curLoc, ghostInfo, objDist, depth) {
         if (depth > MAX_SEARCH_DISTANCE) return objDist
 
-        // If we've already visited this spot then lets break
-        for (let i = 0; i < visited.length; i++) {
-            if (visited.some(v => v.x === curLoc.x && v.y === curLoc.y)) {
-                return objDist
-            }
-        }
+        // If we've already visited this spot from a shorter path then lets break
+        let key = `${curLoc.x},${curLoc.y}`
+        if (visited.has(key) && visited.get(key) <= depth) return objDist
+        visited.set(key, depth)
 
         // 0 = Wall, 1 = Pellet, 2 = Empty, 3 = The ghost house, 4 = Power pill
         let curSpotValue = map?.[curLoc.y]?.[curLoc.x]
@@ -574,7 +584,7 @@ export const Game = function (fps, AI, id) {
                 "x": curLoc.x + dirVectors[i][0],
                 "y": curLoc.y + dirVectors[i][1]
             }
-            let searchResults = traverseToObjects(map, [...visited, curLoc], dirVectors[i], newLoc, ghostInfo, objDistCopy, depth + 1)
+            let searchResults = traverseToObjects(map, visited, dirVectors[i], newLoc, ghostInfo, objDistCopy, depth + 1)
 
             for (let j = 0; j < searchResults.length; j++) {
                 if (searchResults[j] < mergedObjDist[j]) {
@@ -656,9 +666,9 @@ export const Game = function (fps, AI, id) {
     // pellets, ghosts, power pills, eatable ghosts.
     // And then 4 signals indicating if the there is an open space.
     // Order: left, up, right, down
-    // Input size: 20 signals
+    // Input size: 4 open signals + 4 per selected signal in inputSignals, see inputCount()
     // Each distance is normalized: 1 - d/maxD
-    // [open, pellets, ghosts, pills, eatable]
+    // [open, pellets, ghosts, pills, eatable], leaving out the signals not selected
     function getInput() {
         // Signals
         let pellets = [], ghostsSig = [], pills = [], vulGhosts = [], open = []
@@ -683,7 +693,7 @@ export const Game = function (fps, AI, id) {
             return 0
         }
 
-         // Get ghosts location (if we don't already have it)
+         // Get ghosts info
          let ghostInfo = []
          for(let i = 0; i < ghosts.length; i++) {
             ghostInfo = [
@@ -698,20 +708,23 @@ export const Game = function (fps, AI, id) {
 
         // Get item distances
         for (let i = 0; i < dirVectors.length; i++) {
-            // let searchResults = traverseToObjects(
-            //     mapCopy, 
-            //     [curLoc],
-            //     dirVectors[i], 
-            //     {"x": curLoc.x + dirVectors[i][0], "y": curLoc.y + dirVectors[i][1]}, 
-            //     ghostInfo, 
-            //     [Infinity, Infinity, Infinity, Infinity], 
-            //     0)
-            let searchResults = bfsToObjects(
-                mapCopy,
-                {"x": curLoc.x + dirVectors[i][0], "y": curLoc.y + dirVectors[i][1]},
-                curLoc,
-                ghostInfo,
-                40)            
+            let visited = new Map([
+                [`${curLoc.x},${curLoc.y}`, -1]
+            ])
+            let searchResults = traverseToObjects(
+                mapCopy, 
+                visited,
+                dirVectors[i], 
+                {"x": curLoc.x + dirVectors[i][0], "y": curLoc.y + dirVectors[i][1]}, 
+                ghostInfo, 
+                [Infinity, Infinity, Infinity, Infinity], 
+                0)
+            // let searchResults = bfsToObjects(
+            //     mapCopy,
+            //     {"x": curLoc.x + dirVectors[i][0], "y": curLoc.y + dirVectors[i][1]},
+            //     curLoc,
+            //     ghostInfo,
+            //     MAX_SEARCH_DISTANCE)            
             
             let orientedI = (i - due + 4) % 4    
             pellets[orientedI] = norm(searchResults[0])
@@ -724,7 +737,9 @@ export const Game = function (fps, AI, id) {
         // Determine which headings are open
         
 
-        return [...open, ...pellets, ...ghostsSig, ...pills, ...vulGhosts]
+        let signals = { pellets, ghosts: ghostsSig, pills, vulnerableGhosts: vulGhosts }
+
+        return [...open, ...INPUT_SIGNALS.filter(s => inputSignals?.[s]).flatMap(s => signals[s])]
     }
 
     // Front, back, top, bottom

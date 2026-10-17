@@ -302,13 +302,25 @@ export const NeuralNetwork = function (genes, bias, activation, outputActivation
         return (genome.length/(inputs.length * outputs.length))
     }
 
-    // Mutates the weights of the network
-    // If should mutate, replaces the weight with a random value [-100,100]
+    // Random number from a normal distribution with mean 0 and standard deviation 1 (Box-Muller)
+    function gaussian() {
+        return Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random())
+    }
+
+    // Mutates the weights of the network. Each gene mutates with chance rate:
+    //   90% - nudged by a normal random amount (standard deviation 20, i.e. 0.2), kept within [-300, 300] (i.e. [-3, 3])
+    //   10% - replaced with a new random weight in [-100, 100] (i.e. [-1, 1])
+    // Weights are stored x100 in the genes
     function mutateWeights(rate) {
         for (let i = 0; i <  genome.length; i++) {
             if (Math.random() < rate) {
                 let dna = genome[i].split(".")
-                dna[3] = `${Math.floor(Math.random() * 201) - 100}`
+                if (Math.random() < .9) {
+                    let w = parseInt(dna[3]) + Math.round(gaussian() * 20)
+                    dna[3] = `${Math.max(-300, Math.min(300, w))}`
+                } else {
+                    dna[3] = `${Math.floor(Math.random() * 201) - 100}`
+                }
                 genome[i] = dna.join(".")
             }
         }

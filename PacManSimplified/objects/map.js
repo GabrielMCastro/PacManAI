@@ -1,9 +1,10 @@
 import { OBJECTS, MAP, POWER_PILLS, generateWalls, testWalls } from "./definitions.js";
 
 /**
- *  The board: the current state of every tile, and drawing the walls, biscuits and pills
+ *  The board: the current state of every tile, and drawing the walls, biscuits and pills.
+ *  Not called Map so it doesn't hide the built in Map in files that import it
  */
-export const Map = function (size, render) {
+export const GameMap = function (size, render) {
     
     var height    = null,   // Rows
         width     = null,   // Columns
