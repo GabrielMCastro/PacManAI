@@ -1,7 +1,7 @@
 // The development server. Serves the project's files to the browser (the training page is index.html,
 // everything else is loaded by it as ES modules) and has one small API for the networks saved in ai/seeds:
 //   GET  /api/seeds  -> { count }   how many networks are saved (shown in the config editor and save dialog)
-//   POST /api/seeds  <- { header, genomes } replaces the saved networks with these -> { saved } or { error }
+//   POST /api/seeds  <- { header, genomes, fitnesses? } replaces the saved networks with these -> { saved } or { error }
 // The browser can't write files itself, so saving (simulationenvironment.js saveNetworks) goes through here.
 // Loading seeds doesn't need the API: the trainer fetches ai/seeds/net_N.txt as plain static files.
 //
@@ -47,17 +47,21 @@ async function countSeeds() {
 
 app.get("/api/seeds", async (c) => c.json({ count: await countSeeds() }))
 
-// Replace the saved networks with { header, genomes: [[gene, ...], ...] }
+// Replace the saved networks with { header, genomes: [[gene, ...], ...], fitnesses: [number, ...] (optional) }
 // Every existing net_N.txt is deleted first, so a smaller save doesn't leave old networks from a bigger one
 // behind (they'd be counted and loaded with the new ones). Then genome i is written to net_i.txt as
-// JSON [header, [gene, ...]], the format the trainer and visualize.js parse.
+// JSON [header, [gene, ...]], or [header, [gene, ...], fitness] when fitnesses are given, the format the
+// trainer and visualize.js parse. The page sends them sorted best first, so file order is rank order.
 // Responds 400 if the body doesn't match the formats above, 500 if writing fails, else { saved: count }.
 // NOTE: the old files are deleted before the new ones are written, so a failure partway through leaves
 // ai/seeds with only some of the new networks
 app.post("/api/seeds", async (c) => {
-    const { header, genomes } = await c.body ?? {}
+    // fitnesses is optional: one number per genome, stored as a third element of each file
+    const { header, genomes, fitnesses } = await c.body ?? {}
     const valid = typeof header == "string" && HEADER.test(header) && Array.isArray(genomes) &&
-        genomes.every(g => Array.isArray(g) && g.every(gene => typeof gene == "string" && GENE.test(gene)))
+        genomes.every(g => Array.isArray(g) && g.every(gene => typeof gene == "string" && GENE.test(gene))) &&
+        (fitnesses == null || (Array.isArray(fitnesses) && fitnesses.length == genomes.length &&
+            fitnesses.every(f => typeof f == "number" && Number.isFinite(f))))
     if (!valid) return c.json({ error: "Invalid networks" }, 400)
 
     try {
@@ -66,7 +70,8 @@ app.post("/api/seeds", async (c) => {
             if (SEED_FILE.test(f.name)) await Deno.remove(new URL(f.name, SEEDS_DIR))
         }
         for (let i = 0; i < genomes.length; i++) {
-            await Deno.writeTextFile(new URL(`net_${i}.txt`, SEEDS_DIR), JSON.stringify([header, genomes[i]]))
+            const file = fitnesses == null ? [header, genomes[i]] : [header, genomes[i], fitnesses[i]]
+            await Deno.writeTextFile(new URL(`net_${i}.txt`, SEEDS_DIR), JSON.stringify(file))
         }
     } catch (e) {
         // The usual cause: the server was started without write permission (not with deno task start)

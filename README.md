@@ -174,11 +174,13 @@ A network is stored as a list of **genes**, one per connection, each a string:
 
 Because numbering is global, node 12 means the same node in every genome that has it.
 
-A saved network (`ai/seeds/net_N.txt`) is JSON: a header recording `innovations.inputs.hidden.outputs.` at the time of saving, and then the genes:
+A saved network (`ai/seeds/net_N.txt`) is JSON: a header recording `innovations.inputs.hidden.outputs.` at the time of saving, then the genes, then the network's fitness:
 
 ```json
-["7819.12.1141.4.", ["26.10.2.2.1", "52.5.3.-1.1", "209.8.0.-100.1", ...]]
+["7819.12.1141.4.", ["26.10.2.2.1", "52.5.3.-1.1", "209.8.0.-100.1", ...], 1957.1]
 ```
+
+The last element is the network's fitness. Older files don't have it, and they still load.
 
 ---
 
@@ -395,14 +397,14 @@ Training is configured in the `config` object at the top of [`PacManSimplified/s
 - **Save networks:** writes the current generation to `ai/seeds`.
 - **Config:** opens the config editor. Saving it restarts training.
 - **Simulations:** one canvas per game, labelled with the network and game number being played.
-- **Current population:** a diagram of every network, inputs on the left and outputs on the right. Loops are drawn as a ring.
+- **Population by species:** the generation that just finished, split into its species. Each species is a row that scrolls sideways, with its size, average and best fitness, and how many children it was given for the next generation. Species are ordered best average first and networks best first. Each card is a diagram of one network, inputs on the left and outputs on the right, with its fitness and an "Elite" badge if it was carried over unchanged. Loops are drawn as a ring. During the first generation, nothing has been scored yet, so the current population is shown in one row.
 - **Generations:** the average and top fitness of each finished generation, with how long it took.
 
 ---
 
 ## Saving and seeding networks
 
-**Save networks** (or the end of a training run) sends the population to the server. The server **deletes every `net_N.txt` in `ai/seeds`** and writes `net_0.txt`, `net_1.txt`, … for the new population. `ai/seeds` is a working folder and is git-ignored.
+**Save networks** (or the end of a training run) saves the **last finished generation**, sorted **best fitness first**. The networks currently playing haven't been scored yet, so they aren't the ones saved. The server **deletes every `net_N.txt` in `ai/seeds`** and writes `net_0.txt` (the best network), `net_1.txt`, … Each file also stores that network's fitness. Because the files are in rank order, **Seed networks = N loads the top N**. During the first generation nothing has been scored yet, so saving then writes the current, unscored population in its original order. `ai/seeds` is a working folder and is git-ignored.
 
 Populations worth keeping go in **`ai/saved_networks/`**, which is committed. For example, `pellets_only_2000max_1200avg` is a pellets-only population with a top fitness of 2000 and an average of 1200, trained on the Default map. To use one:
 
@@ -413,7 +415,7 @@ cp ai/saved_networks/pellets_only_2000max_1200avg/* ai/seeds/
 
 Then, in the config editor, set **Seed networks** to 200 and **Input signals** to match the networks: "+ Pellets" for this one. If the seeds' input count plus **New inputs** doesn't match the selected inputs, training refuses to start and says why.
 
-`visualize.html` is meant to draw the networks saved in `ai/seeds`, but it's currently broken (see [known limitations](#known-limitations)). The training page's **Current population** strip shows the same diagrams.
+`visualize.html` is meant to draw the networks saved in `ai/seeds`, but it's currently broken (see [known limitations](#known-limitations)). The training page's **Population by species** panel shows the same diagrams.
 
 ---
 

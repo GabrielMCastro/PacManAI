@@ -214,15 +214,27 @@ function startTraining(newConfig) {
     return true
 }
 
-// The current generation's networks in the seed file format: a header with the population's
-// node counts (innovations.inputs.hidden.outputs.) and each network's genes
-// Returns { header, genomes: [[gene, ...], ...] }, the body POST /api/seeds expects (see entry.js).
+// The networks to save, in the seed file format: a header with the population's node counts
+// (innovations.inputs.hidden.outputs.) and each network's genes, plus each network's fitness.
+// Saves the last FINISHED generation (AI.getLastGeneration()), sorted best fitness first, so net_0 is the best
+// network and seeding with SeedNumber = N loads the top N. The population being played right now hasn't been
+// scored yet. During generation 0 nothing has finished, so it falls back to the current, unscored population
+// (fitnesses and generation are null then).
+// Returns { header, genomes: [[gene, ...], ...], fitnesses: [number, ...] | null, generation: number | null }.
 // The counts are shared by the whole population (the trainer's global info), so one header covers every network
 function snapshotNetworks() {
     let gI = AI.getGlobalInfo()
+    let header = `${gI.innovations}.${gI.inputs}.${gI.hidden}.${gI.outputs}.`
+    let last = AI.getLastGeneration()
+    if (!last) {
+        return { header, genomes: AI.getPopulation().map(n => [...n.getGenome()]), fitnesses: null, generation: null }
+    }
+    let ranked = last.species.flatMap(s => s.networks).sort((a, b) => b.fitness - a.fitness)
     return {
-        header: `${gI.innovations}.${gI.inputs}.${gI.hidden}.${gI.outputs}.`,
-        genomes: AI.getPopulation().map(n => [...n.getGenome()]),
+        header,
+        genomes: ranked.map(n => [...n.network.getGenome()]),
+        fitnesses: ranked.map(n => n.fitness),
+        generation: last.generation,
     }
 }
 
@@ -237,7 +249,7 @@ async function saveNetworks(snapshot) {
         res = await fetch("/api/seeds", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(snapshot),
+            body: JSON.stringify({ header: snapshot.header, genomes: snapshot.genomes, fitnesses: snapshot.fitnesses }),
         })
     } catch (e) {
         throw new Error("Couldn't reach the server")
@@ -265,8 +277,8 @@ async function getSeedCount() {
 }
 
 // Saves the population automatically when training completes, called by completeGeneration().
-// NOTE: this runs after advanceGeneration(), so what's saved is the population bred from the last
-// generation played (not yet evaluated), not the networks that were scored in it
+// This runs after advanceGeneration(), so the last finished generation is the final one played, and
+// snapshotNetworks() saves those scored networks best first (not the unplayed children bred from them)
 function saveGeneration() {
     saveNetworks(snapshotNetworks())
         .then(saved => toast(`Training complete, saved ${saved} networks to ai/seeds`))
@@ -537,7 +549,9 @@ configBtn.addEventListener("click", async () => {
 saveBtn.addEventListener("click", async () => {
     // Snapshot first, the generation could finish while the dialog is open
     let snapshot = snapshotNetworks()
-    let which = finished ? "the final population" : `generation ${AI.getCurrentGeneration() + 1}`
+    let which = snapshot.generation == null
+        ? "generation 1 (nothing has finished yet, so they're unscored and unsorted)"
+        : `Gen ${snapshot.generation}, the last finished generation, best first (top fitness ${snapshot.fitnesses[0]})`
     let count = await getSeedCount()
     let message = `Save the ${snapshot.genomes.length} networks of ${which} to ai/seeds?` +
         (count ? ` This replaces the ${count} networks saved there.` : "")
@@ -597,29 +611,66 @@ function frame() {
     requestAnimationFrame(frame)
 }
 
-// Redraw the network visualizations for the current population. Deferred to an
-// animation frame so skipped generations (e.g. headless in a background tab) cost nothing.
-// Called after every generation and on a (re)start. Cancelling the pending frame means only the
-// latest population is ever drawn, however many generations finish before the next frame.
-// Draws one diagram per network (PopulationSize of them) with ai/networkVisualizer.js
+// Redraw the network diagrams. Deferred to an animation frame so skipped generations (e.g. headless in a
+// background tab) cost nothing. Called after every generation and on a (re)start. Cancelling the pending frame
+// means only the latest generation is ever drawn, however many generations finish before the next frame.
+//
+// Shows the generation that just finished, split into the species the trainer grouped it into when breeding
+// (AI.getLastGeneration()), because that's the one with fitness and species. The networks being played right
+// now haven't been scored or speciated yet. Each species is a row with its own horizontal scroll, species ordered
+// best average first and networks best first. During generation 0 there's no finished generation, so the current
+// population is shown in a single row instead. Diagrams are drawn with ai/networkVisualizer.js
 let visFrame = null
 function scheduleVisualization() {
     cancelAnimationFrame(visFrame)
     visFrame = requestAnimationFrame(() => {
-        let pop = AI.getPopulation()
+        let last = AI.getLastGeneration()
         let globalInfo = AI.getGlobalInfo()
+        let round = (v) => (Math.round(v * 10) / 10).toLocaleString()
+
+        // One row: a header line, then a horizontal strip of network cards
+        let addGroup = (title, stats, networks) => {
+            let group = document.createElement("div")
+            group.className = "species-group"
+            group.innerHTML = `<div class="species-head"><span class="species-name"></span><span class="species-stats"></span></div>`
+            group.querySelector(".species-name").textContent = title
+            group.querySelector(".species-stats").textContent = stats
+            let strip = document.createElement("div")
+            strip.className = "strip"
+            group.append(strip)
+            visEl.append(group)
+
+            networks.forEach(({ network, fitness, elite }) => {
+                let visualizer = NetworkVisualizer(network.getGenome(), globalInfo, network.getId())
+                visualizer.init()
+                visualizer.visualize(strip, 337, 267, { fitness, elite })
+            })
+        }
 
         visEl.innerHTML = ""
-        for (let i = 0; i < pop.length; i++) {
-            let visualizer = NetworkVisualizer(pop[i].getGenome(), globalInfo, pop[i].getId())
+        let summary = document.createElement("div")
+        summary.className = "vis-summary"
+        visEl.append(summary)
 
-            visualizer.init()
-            visualizer.visualize(visEl, 337, 267)
+        if (!last) {
+            summary.textContent = "Generation 1 is playing. Networks are split into species once it finishes"
+            addGroup("Generation 1", `${AI.getPopulationSize()} networks, not scored yet`,
+                AI.getPopulation().map(network => ({ network })))
+            return
         }
+
+        summary.textContent = `Gen ${last.generation}, the generation that bred the one playing now · ` +
+            `${last.species.length} species, best average first`
+        last.species.forEach((sp, i) => {
+            let elite = sp.networks.some(n => n.elite)
+            addGroup(`Species ${i + 1}`,
+                `${sp.networks.length} network${sp.networks.length == 1 ? "" : "s"} · avg ${round(sp.average)} · ` +
+                `best ${round(sp.best)} · next gen ${sp.children} children${elite ? " + elite" : ""}`,
+                sp.networks)
+        })
     })
 }
 
-// Page load: start the first run with the default config above and the render loop
 startTraining(config)
 requestAnimationFrame(frame)
 

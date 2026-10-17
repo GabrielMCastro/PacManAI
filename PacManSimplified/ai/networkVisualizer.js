@@ -168,6 +168,8 @@ export const NetworkVisualizer = function (genome, globalInfo, id)
     // Draws the network into a titled card appended to the container element
     // container - DOM element to append the card to, width/height - size of the SVG in pixels
     // (337 x 267 for the per-generation cards, 1010 x 800 in visualize.js). Call init() first. Returns nothing.
+    // info - optional { fitness, elite }: shows the network's fitness in the title row, and an "Elite" badge if it
+    // was carried into the next generation unchanged
     //
     // Layout: one column per layer, nodes spread evenly down their column and centered vertically.
     // Steps:
@@ -176,14 +178,17 @@ export const NetworkVisualizer = function (genome, globalInfo, id)
     //   3. Column width xdist = width / number of layers, row height ydist = height / size of the largest layer
     //   4. Position the nodes: column centers for x, centered rows for y, a ring for the cycle layer
     //   5. Draw the links first, then the nodes on top (circle colored by layer plus its id as a label)
-    function visualize(container, width, height) {
+    function visualize(container, width, height, info) {
         // nodeSize = circle radius, scaled with the height: 30px at 800px tall (the commented part is an older formula)
         let nodeSize = (30 * height) / 800//(width / layers) * .15
         let lineWidth = 3  // Line width for a weight of 1, scaled by sqrt(|weight|)
         let color = d3.scaleOrdinal(d3.schemeTableau10)  // One color per layer
         // 1. Card with title and subtitle (classes styled by the page's css)
         let card = d3.select(container).append("div").attr("class", "vis-card")
-        card.append("div").attr("class", "card-title").text(`Network ${network.getId()}`)
+        let title = card.append("div").attr("class", "card-title")
+        title.append("span").text(`Network ${network.getId()}`)
+        if (info?.elite) title.append("span").attr("class", "elite-badge").text("Elite")
+        if (info?.fitness != null) title.append("span").attr("class", "card-fitness").text(info.fitness.toLocaleString())
         card.append("div").attr("class", "card-subtitle")
             .text(`${nodes.size} nodes · ${links.length} connection${links.length == 1 ? "" : "s"}`)
 

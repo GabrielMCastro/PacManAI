@@ -57,7 +57,9 @@ import { NeuralNetwork } from "./neuralNetwork.js"
       * species: array of species from the last speciation, each a list of GENOMES (gene string
         arrays), not networks. Inside generateNewPopulation, newSpecies is the same idea but as
         lists of NETWORKS, since their scores are needed there.
-      * Seed file (ai/seeds/net_N.txt): ["innovations.inputs.hidden.outputs.",["gene","gene",...]]
+      * Seed file (ai/seeds/net_N.txt): ["innovations.inputs.hidden.outputs.",["gene","gene",...]], with the
+        network's fitness as a third element when it was saved from a scored generation. Saves are sorted
+        best first, so net_0 is the best and SeedNumber = N loads the top N
 
     Configuration:
     * SimNum
@@ -185,6 +187,8 @@ export const AITrainer = function (config)
     let simCurrentNets = Array.apply(null, Array(simNum)).map((v, i) => i) // For each game, the index of the network it's playing
     let simGameFitnesses = simCurrentNets.map(() => [])  // For each game, the fitness of each finished game of its current network
     let simHasNet = simCurrentNets.map(() => true)       // For each game, false once there are no networks left for it this generation
+    let lastGeneration = null          // The generation that bred the current population, grouped into its species with
+                                       // fitness, for the network diagrams. Set by generateNewPopulation, null during generation 0
     // NOTE: these assume populationSize >= simNum. With fewer networks than games, the extra
     // games start on indexes past the end of the population.
     // NOTE: "score" everywhere in this file (setScore, getScore, maxScore) means fitness: the
@@ -231,8 +235,10 @@ export const AITrainer = function (config)
                     // Stripping the brackets and quotes and splitting on commas gives a flat list:
                     //   genome[0] = the header "innovations.inputs.hidden.outputs." (population counters at save time)
                     //   genome[1..] = the gene strings
-                    let genome = allText.replace(/\[/g, "").replace(/\]/g, "")
-                                        .replace(/\"/g, "").split(",")
+                    // A seed file is JSON: [header, [gene, ...]] or, when saved with scores, [header, [gene, ...], fitness].
+                    // Flattened to [header, gene, gene, ...] for the code below; the fitness isn't needed here
+                    let [header, savedGenes] = JSON.parse(allText)
+                    let genome = [header, ...savedGenes]
                     // Only the first seed's header is read. All seeds are expected to come from the same
                     // saved population, so they share the same counters.
                     // NOTE: seeds saved from different runs would have conflicting node and innovation numbers.
@@ -495,14 +501,12 @@ export const AITrainer = function (config)
         // a good network can't be lost to an unlucky generation of children. The size limit follows the
         // original NEAT paper, which copies the champion of every species with more than five networks.
         // NOTE: an elite keeps last generation's fitness and id until it's replayed and setScore overwrites it.
-        // NOTE: this is a plain for loop, so it does NOT skip holes. If an old species got no members this
-        // generation and a later index is filled (another old species or a new one), newSpecies[i] is
-        // undefined and newSpecies[i].length throws a TypeError. (A hole is always followed by a filled
-        // index, since an array's length only grows when a later index is written.) Steps 4-9 use map/filter/forEach, which
-        // skip holes.
+        // This is a plain for loop, so unlike map/filter/forEach (steps 4-9) it visits holes too: an old species
+        // that got no members this generation is undefined here whenever a later index is filled. The ?. treats
+        // a hole as too small for an elite instead of throwing (it used to throw a TypeError and stop training).
         let elities = []
         for (let i = 0; i < newSpecies.length; i++) {
-            if (newSpecies[i].length >= 5) {
+            if (newSpecies[i]?.length >= 5) { // ?. skips holes (old species with no members this generation)
                 let s = newSpecies[i]
                 elities.push(s[s.length - 1])
             }
@@ -594,6 +598,18 @@ export const AITrainer = function (config)
         // Elites go last, so they're the last networks handed out next generation.
         species = newSpecies.map(s => s.map(nn => nn.getGenome())).filter(s => s?.length > 0) // Filter extinct
         population = [...newPopulation, ...elities]
+
+        // Keep the finished generation's grouping for the page (getLastGeneration). Fitness is copied now because an elite's
+        // score gets overwritten when it's replayed. Holes are skipped by map and dropped by the filter
+        lastGeneration = {
+            generation: generations - 1,
+            species: newSpecies.map((s, i) => ({
+                networks: [...s].reverse().map(n => ({ network: n, fitness: n.getScore(), elite: elities.includes(n) })),
+                average: s.reduce((sum, n) => sum + n.getScore(), 0) / s.length,
+                best: s[s.length - 1].getScore(),
+                children: reproductionDistribution[i],
+            })).filter(s => s).sort((a, b) => b.average - a.average),
+        }
     }
 
     // Increment the innovation number and hidden nodes by requested amount and return new innovation number
@@ -832,6 +848,14 @@ export const AITrainer = function (config)
         return [...species]
     }
 
+    // Returns the last finished generation grouped by species, or null during generation 0:
+    //   { generation, species: [{ networks: [{ network, fitness, elite }], average, best, children }] }
+    // Species are sorted best average first, and the networks in each best fitness first. generation counts from 0,
+    // children is how many children the species was given for the next generation (elites not included)
+    function getLastGeneration() {
+        return lastGeneration
+    }
+
     // Returns the id for a specific sim's network
     // "generation_index" for generation 0 and "generation_species_child" after that (elites keep their old id)
     function getCurrentNetId(sim) {
@@ -853,6 +877,7 @@ export const AITrainer = function (config)
         "getNetworkAt" : getNetworkAt,
         "getPopulation" : getPopulation,
         "getSpecies" : getSpecies,
+        "getLastGeneration" : getLastGeneration,
         "getCurrentGeneration" : getCurrentGeneration,
         "getMaxGeneration" : getMaxGeneration,
         "isGenerationOver" : isGenerationOver,

@@ -28,12 +28,13 @@ rawFile.onreadystatechange = () => {
     // status 0 is what a file:// request reports (a failed request reports it too)
     if(rawFile.status === 200 || rawFile.status == 0)
     {
-        // A seed file is JSON: ["innovations.inputs.hidden.outputs.", ["gene", ...]] (written by entry.js).
-        // Stripping the brackets and quotes and splitting on commas gives [header, gene, gene, ...]
-        // (genes never contain commas). Same parsing as the trainer's seed loading in ai/aiTrainer.js
+        // A seed file is JSON: ["innovations.inputs.hidden.outputs.", ["gene", ...]], plus the network's fitness
+        // as a third element when saved from a scored generation (written by entry.js). Parsed the same way as the
+        // trainer's seed loading in ai/aiTrainer.js
         let allText = rawFile.responseText;
-        let genome = allText.replace(/\[/g, "").replace(/\]/g, "")
-                            .replace(/\"/g, "").split(",")
+        // [header, [gene, ...]] or [header, [gene, ...], fitness], flattened to [header, gene, gene, ...]
+        let [header, savedGenes] = JSON.parse(allText)
+        let genome = [header, ...savedGenes]
 
         let global = genome[0].split(".")
         innovations = parseInt(global[0])

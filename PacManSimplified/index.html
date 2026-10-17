@@ -343,7 +343,43 @@
         border-radius: 6px;
       }
 
-      #visbody { flex: 1; align-items: flex-start; }
+      /* One row per species stacked vertically, each row scrolls sideways */
+      #visbody {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 14px;
+        overflow-y: auto;
+      }
+      .vis-summary { color: var(--muted); font-size: 12px; }
+      .species-group {
+        flex: 0 0 auto;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+      }
+      .species-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 4px 12px;
+        padding: 10px 12px 0;
+      }
+      .species-name { font-weight: 600; }
+      .species-stats { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+      .species-group .strip { padding: 10px 12px 12px; }
+      .vis-card .card-title { display: flex; align-items: center; gap: 8px; }
+      .card-fitness { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--accent); }
+      .elite-badge {
+        padding: 1px 6px;
+        border-radius: 999px;
+        background: var(--accent-dim);
+        color: var(--accent);
+        font-size: 11px;
+        font-weight: 600;
+      }
 
       /* ---- Headless progress ---- */
       #headless_panel {
@@ -473,8 +509,8 @@
     </section>
 
     <section id="networks_panel" class="panel">
-      <h2>Current population</h2>
-      <div id="visbody" class="strip"></div>
+      <h2>Population by species</h2>
+      <div id="visbody"></div>
     </section>
 
     <section id="generations_panel" class="panel">
