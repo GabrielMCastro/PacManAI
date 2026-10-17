@@ -1,4 +1,4 @@
-import { Game, MODES, inputCount } from "./game.js";
+import { Game, MODES, INPUT_SIGNALS, inputCount } from "./game.js";
 import { AITrainer } from "/ai/aiTrainer.js"
 import { NetworkVisualizer } from "/ai/networkVisualizer.js"
 import { confirmDialog, editConfig, toast } from "./dialogs.js"
@@ -40,12 +40,17 @@ let config = {
     // Inputs (the node count the trainer needs) is worked out from this in startTraining()
     InputSignals: {
         pellets: true,
-        ghosts: true,
-        pills: true,
-        vulnerableGhosts: true,
+        ghosts: false,
+        pills: false,
+        vulnerableGhosts: false,
     },
     Outputs: 4,
     ReproductionPercentile: .8,
+    GamesPerNetwork: 3,  // Fitness is the average of this many games
+    SurvivalBonus: 10,   // Points per second alive, a pellet is 10
+    GhostCount: 1,       // Ghosts in the ghost and power pill modes, 1 to 4
+    MapIndex: 1,         // Which map in MAP (objects/definitions.js) is played
+    DecideOnTileCenter: true, // Network only picks a move when pacman is centered on a tile, turn off to react every tick
     Compatibility: {
         c1: 1,
         c2: 1,
@@ -73,9 +78,26 @@ let headless = false,
     speedTicks = 0,
     bestAvg = 0
 
+// The parts of the config each Game uses, see Game in game.js
+function gameOptions(config) {
+    return {
+        inputSignals: config.InputSignals,
+        ghostCount: config.GhostCount,
+        mapIndex: config.MapIndex,
+        decideOnTileCenter: config.DecideOnTileCenter,
+    }
+}
+
 // (Re)start training from the first generation. Returns false and leaves the current run
 // alone if the trainer can't be created (e.g. seed files missing)
 function startTraining(newConfig) {
+    // Signals have to be the first N of INPUT_SIGNALS (the config editor only allows that), otherwise
+    // a signal added later lands in the middle of the inputs instead of after them
+    let gap = INPUT_SIGNALS.findIndex((s, i) => newConfig.InputSignals?.[s] && i > 0 && !newConfig.InputSignals?.[INPUT_SIGNALS[i - 1]])
+    if (gap != -1) {
+        toast(`Couldn't start training: input signal "${INPUT_SIGNALS[gap]}" needs "${INPUT_SIGNALS[gap - 1]}" turned on too`, true)
+        return false
+    }
     newConfig = { ...newConfig, Inputs: inputCount(newConfig.InputSignals) }
 
     let newAI
@@ -105,7 +127,7 @@ function startTraining(newConfig) {
 
     GAMES = []
     for (let i = 0; i < config.SimNum; i++) {
-        const g = Game(FRAMERATE, AI, i, config.InputSignals)
+        const g = Game(FRAMERATE, AI, i, gameOptions(config))
         g.init(simEl)
         g.setMode(MODES[mode])
         g.startNewGame()
@@ -378,8 +400,9 @@ modeInputs.forEach(input => input.addEventListener("change", () => {
 pauseBtn.addEventListener("click", () => setPaused(!paused))
 
 configBtn.addEventListener("click", async () => {
-    // The trainer doesn't know about InputSignals, so add it for the editor
-    let edited = await editConfig({ ...AI.getConfig(), InputSignals: { ...config.InputSignals } }, await getSeedCount())
+    // The trainer doesn't know about the game options, so add them for the editor
+    let { InputSignals, GhostCount, MapIndex, DecideOnTileCenter } = config
+    let edited = await editConfig({ ...AI.getConfig(), InputSignals: { ...InputSignals }, GhostCount, MapIndex, DecideOnTileCenter }, await getSeedCount())
     // Keep options the editor doesn't show (e.g. Outputs, activation functions)
     if (edited && startTraining({ ...config, ...edited })) {
         toast("Training restarted with the new config")

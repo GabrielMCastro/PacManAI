@@ -217,8 +217,8 @@ export const User = function (game, map, render, setState) {
             addScore((block === OBJECTS.BISCUIT) ? 10 : 50);
             eaten += 1;
             
-            // 182 is the number of biscuits on map 1, other maps won't complete at the right time
-            if (eaten === 182) {
+            // Every biscuit and pill on this map eaten
+            if (eaten === map.getFoodCount()) {
                 game.completedLevel();
             }
             

@@ -4,7 +4,7 @@ import { GameMap } from "/objects/map.js"
 import { Ghost } from "/objects/ghost.js";
 
 // Pacman dies if it goes this long without eating
-const STARVE_SECONDS = 5
+const STARVE_SECONDS = 3
 
 const GHOST_COLOURS = ["#00FFDE", "#FF0000", "#FFB8DE", "#FFB847"]
 
@@ -36,8 +36,22 @@ export function inputCount(inputSignals) {
  *  A single simulation. Logic and rendering are separate:
  *      step() - advances the simulation one tick, never touches the canvas
  *      draw() - paints the current state, skipped while the canvas is off screen
+ *
+ *  options:
+ *      inputSignals       - which optional inputs getInput() returns, see INPUT_SIGNALS
+ *      ghostCount         - ghosts in the ghost and power pill modes, 1 to 4
+ *      mapIndex           - which map in MAP is played
+ *      decideOnTileCenter - only ask the network for a move when pacman is centered on a tile (every 5 ticks)
+ *                           instead of every tick. Stops it reversing back and forth on one spot while training
  */
-export const Game = function (fps, AI, id, inputSignals) {
+export const Game = function (fps, AI, id, options = {}) {
+
+    const {
+        inputSignals,
+        ghostCount = GHOST_COLOURS.length,
+        mapIndex = 1,
+        decideOnTileCenter = false,
+    } = options
 
     var state        = WAITING,        // WAITING, COUNTDOWN, PLAYING, EATEN_PAUSE or DYING, see step()
         ghosts       = [],             // Empty in the pellets only mode
@@ -50,9 +64,12 @@ export const Game = function (fps, AI, id, inputSignals) {
         stateChanged = true,           // Set by setState(), lets WAITING run only once per wait
         timerStart   = null,           // Tick of the last timed event, only read by commented out code
         lastFoodTick = 0,              // Tick pacman last ate, for starvation
+        aliveTicks   = 0,              // Ticks spent playing this game
+        aliveTicksAtFood = 0,          // aliveTicks when pacman last ate. The survival bonus only counts up to here,
+                                       // so wandering or stalling until starvation earns nothing
         ctx          = null,
         map          = null,
-        mapI         = 1,              // Which map in MAP is played
+        mapI         = mapIndex,       // Which map in MAP is played
         user         = null,           // Pacman
         idle         = false,          // True when this game is out of networks for the generation
         visible      = true,           // Whether the canvas is on screen, drawing is skipped if not
@@ -80,8 +97,7 @@ export const Game = function (fps, AI, id, inputSignals) {
         return localStorage["soundDisabled"] === "true";
     };
     
-    function startLevel() {  
-        AI.setScore(user.theScore(), id)      
+    function startLevel() {
         user.resetPosition();
         for (var i = 0; i < ghosts.length; i += 1) { 
             ghosts[i].reset();
@@ -95,7 +111,9 @@ export const Game = function (fps, AI, id, inputSignals) {
         setState(WAITING);
         level = 1;
         idle = false;
-         
+        aliveTicks = 0;
+        aliveTicksAtFood = 0;
+
         user.reset(setState);
         map.reset(mapI, mode.powerPills);
 
@@ -130,8 +148,9 @@ export const Game = function (fps, AI, id, inputSignals) {
         if (user.getLives() > 0) {
             startLevel();
         } else {
-            AI.setScore(user.theScore(), id) // Setting the AI score
-            AI.moveToNext(id) // Move to the next network
+            // Game over. The trainer averages it with the network's other games, and moves this
+            // game to the next network once it has played them all
+            AI.finishGame(user.theScore(), aliveTicksAtFood / FPS, id)
         }
     }
 
@@ -216,13 +235,17 @@ export const Game = function (fps, AI, id, inputSignals) {
         ++tick;
 
         if (state === PLAYING) {
+            ++aliveTicks;
             update();
 
-            // Deciding which direction to go
+            // Deciding which direction to go, between decisions pacman keeps going the way it was
             // 0 = straight, 1 = turn right, 2 = turn around, 3 = turn left
-            let decision = (AI.execute(getInput(), id) + user.getDirection()) % 4
+            let centered = userPos.x % 10 === 0 && userPos.y % 10 === 0
+            if (!decideOnTileCenter || centered) {
+                let decision = (AI.execute(getInput(), id) + user.getDirection()) % 4
 
-            user.setDirection(decision);
+                user.setDirection(decision);
+            }
 
             if (state === PLAYING && (tick - lastFoodTick) > starveTicks) {
                 setState(DYING);
@@ -231,7 +254,8 @@ export const Game = function (fps, AI, id, inputSignals) {
         } else if (state === WAITING && stateChanged) {            
             stateChanged = false;
 
-            if (!AI.isGenerationOver()) {
+            // Not isGenerationOver(): this game may still owe games for its network after the last one is handed out
+            if (AI.hasNetwork(id)) {
                 startNewGame();
             } else {
                 idle = true;
@@ -266,7 +290,7 @@ export const Game = function (fps, AI, id, inputSignals) {
             dialog("Paused");
         }
 
-        stats.textContent = idle ? "Waiting for generation to finish" : `Network ${AI.getCurrentNetId(id)}`
+        stats.textContent = idle ? "Waiting for generation to finish" : `Network ${AI.getCurrentNetId(id)} · game ${AI.getCurrentGameNumber(id)} / ${AI.getConfig().GamesPerNetwork}`
     }
 
     function eatenPill() {
@@ -278,6 +302,7 @@ export const Game = function (fps, AI, id, inputSignals) {
     };
 
     function ateFood() {
+        aliveTicksAtFood = aliveTicks;
         lastFoodTick = tick;
     };
     
@@ -285,8 +310,7 @@ export const Game = function (fps, AI, id, inputSignals) {
         for (let i = 0; i < user.getLives(); i++) {
             user.loseLife()
         }
-        AI.setScore(user.theScore(), id)  
-        wins += 1 
+        wins += 1
         setState(DYING);
         // level += 1;
         map.reset(mapI, mode.powerPills);
@@ -998,7 +1022,7 @@ export const Game = function (fps, AI, id, inputSignals) {
     function setMode(m) {
         mode = m
         ghosts = mode.ghosts
-            ? GHOST_COLOURS.map(colour => Ghost({"getTick":getTick}, map, colour, FPS, true))
+            ? GHOST_COLOURS.slice(0, ghostCount).map(colour => Ghost({"getTick":getTick}, map, colour, FPS, true))
             : []
         ghostPos = []
     }

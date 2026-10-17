@@ -1,5 +1,24 @@
 // Modal dialogs and toasts for the training page
 
+import { INPUT_SIGNALS, inputCount } from "./game.js"
+import { MAP, MAP_NAMES, POWER_PILLS, OBJECTS } from "./objects/definitions.js"
+
+// Map choices: name, pellet count, and a note when the power pill mode would have no pills
+const MAP_OPTIONS = MAP.map((m, i) => {
+    let pellets = m.flat().filter(b => b === OBJECTS.BISCUIT).length
+    return { value: i, label: `${MAP_NAMES[i]} · ${pellets} pellets${POWER_PILLS[i]?.length ? "" : " · no power pills"}` }
+})
+
+// Labels for the input signals selector, in INPUT_SIGNALS order
+const SIGNAL_LABELS = { pellets: "Pellets", ghosts: "Ghosts", pills: "Power pills", vulnerableGhosts: "Vulnerable ghosts" }
+
+// InputSignals for the first `level` signals in INPUT_SIGNALS order, and back
+const signalsForLevel = (level) => Object.fromEntries(INPUT_SIGNALS.map((s, i) => [s, i < level]))
+const levelForSignals = (signals) => {
+    let level = INPUT_SIGNALS.findIndex(s => !signals?.[s])
+    return level == -1 ? INPUT_SIGNALS.length : level
+}
+
 // Every editable config option, see ai/aiTrainer.js for what they do.
 // Outputs and GPUMultiplication are left out: the game always has 4 moves and the GPU path is broken.
 const CONFIG_FIELDS = [
@@ -9,10 +28,9 @@ const CONFIG_FIELDS = [
         { key: "MaxGens", label: "Generations", type: "int", min: 1, hint: "Training stops after this many" },
     ]},
     { group: "Inputs", fields: [
-        { key: "InputSignals.pellets", label: "Pellets", type: "bool", hint: "Distance to the nearest pellet in each direction" },
-        { key: "InputSignals.ghosts", label: "Ghosts", type: "bool", hint: "Distance to the nearest dangerous ghost in each direction" },
-        { key: "InputSignals.pills", label: "Power pills", type: "bool", hint: "Distance to the nearest power pill in each direction" },
-        { key: "InputSignals.vulnerableGhosts", label: "Vulnerable ghosts", type: "bool", hint: "Distance to the nearest eatable ghost in each direction. Open space inputs are always included, each signal adds 4 inputs" },
+        // Signals can only be added in INPUT_SIGNALS order, so networks seeded from an earlier stage
+        // only ever gain inputs at the end (where NewInputs adds them)
+        { key: "InputSignals", label: "Input signals", type: "signals" },
     ]},
     { group: "Network", fields: [
         { key: "FullyConnected", label: "Fully connected", type: "bool", hint: "Start with every input connected to every output, otherwise no connections" },
@@ -29,6 +47,15 @@ const CONFIG_FIELDS = [
         { key: "Compatibility.c2", label: "Disjoint weight (c2)", type: "number", min: 0 },
         { key: "Compatibility.c3", label: "Weight difference (c3)", type: "number", min: 0 },
         { key: "Compatibility.threshold", label: "Threshold", type: "number", min: 0, hint: "Networks closer than this to a species join it" },
+    ]},
+    { group: "Game", fields: [
+        { key: "MapIndex", label: "Map", type: "select", options: MAP_OPTIONS, hint: "The board every game is played on" },
+        { key: "GhostCount", label: "Ghosts", type: "int", min: 1, max: 4, hint: "Ghosts in the ghost and power pill modes. Start with 1 and add more as the average flattens" },
+        { key: "DecideOnTileCenter", label: "Decide on tile centers", type: "bool", hint: "Network only picks a move when pacman is centered on a tile. Stops it reversing back and forth on one spot, turn off after training to react every tick" },
+    ]},
+    { group: "Fitness", fields: [
+        { key: "GamesPerNetwork", label: "Games per network", type: "int", min: 1, hint: "Fitness is the average of this many games, so one lucky game counts for less" },
+        { key: "SurvivalBonus", label: "Survival bonus", type: "number", min: 0, hint: "Points per second alive, a pellet is 10. 0 = off" },
     ]},
     { group: "Reproduction", fields: [
         { key: "ReproductionPercentile", label: "Reproduction percentile", type: "number", min: 0, max: 1, hint: "Only networks above this percentile of their species reproduce" },
@@ -88,6 +115,40 @@ export function confirmDialog(title, message, confirmLabel, danger = false) {
     ]).result.then(v => v === true)
 }
 
+// Segmented selector for the input signals. Each step adds one signal on top of the ones before it,
+// so the selection is always the first N of INPUT_SIGNALS. Radios underneath, so arrow keys work
+function signalsRow(f, value) {
+    let row = document.createElement("div")
+    row.className = "config-row config-signals"
+    let steps = ["Open space", ...INPUT_SIGNALS.map(s => `+ ${SIGNAL_LABELS[s]}`)]
+    row.innerHTML = `
+        <span class="config-label" id="cfg_${f.key}_label">${f.label}</span>
+        <div class="signal-steps" role="radiogroup" aria-labelledby="cfg_${f.key}_label">
+            ${steps.map((label, i) => `
+                <label><input type="radio" name="${f.key}" value="${i}"><span>${label}</span></label>`).join("")}
+        </div>
+        <small></small>`
+
+    let radios = [...row.querySelectorAll("input")]
+    let hint = row.querySelector("small")
+    radios[levelForSignals(value)].checked = true
+
+    // Fill every step up to the selected one, and describe the resulting inputs
+    function paint() {
+        let level = radios.findIndex(r => r.checked)
+        radios.forEach((r, i) => {
+            r.parentElement.classList.toggle("included", i <= level)
+            r.parentElement.classList.toggle("selected", i == level)
+        })
+        let names = ["open space", ...INPUT_SIGNALS.slice(0, level).map(s => SIGNAL_LABELS[s].toLowerCase())]
+        hint.textContent = `${inputCount(signalsForLevel(level))} inputs: ${names.join(", ")}. ` +
+            "Each step adds 4 inputs after the ones before it, so seeded networks keep their input order"
+    }
+    radios.forEach(r => r.addEventListener("change", paint))
+    paint()
+    return row
+}
+
 // Shows the config editor for the current config. Resolves with the edited config once saved
 // and confirmed, or null if cancelled. seedCount is the number of networks in ai/seeds, null if unknown
 export async function editConfig(current, seedCount) {
@@ -102,6 +163,10 @@ export async function editConfig(current, seedCount) {
         for (let f of fields) {
             let id = `cfg_${f.key.replace(".", "_")}`
             let value = getPath(current, f.key)
+            if (f.type == "signals") {
+                fieldset.append(signalsRow(f, value))
+                continue
+            }
             let row = document.createElement("div")
             row.className = `config-row${f.type == "bool" ? " config-bool" : ""}`
 
@@ -112,10 +177,15 @@ export async function editConfig(current, seedCount) {
 
             row.innerHTML = f.type == "bool"
                 ? `<label for="${id}"><input type="checkbox" id="${id}" name="${f.key}"> ${f.label}</label>`
+                : f.type == "select"
+                ? `<label for="${id}">${f.label}</label>
+                   <select id="${id}" name="${f.key}">
+                       ${f.options.map(o => `<option value="${o.value}">${o.label}</option>`).join("")}
+                   </select>`
                 : `<label for="${id}">${f.label}</label>
                    <input type="number" id="${id}" name="${f.key}" step="${f.type == "int" ? 1 : "any"}"
                           ${f.min != null ? `min="${f.min}"` : ""} ${f.max != null ? `max="${f.max}"` : ""}>`
-            let input = row.querySelector("input")
+            let input = row.querySelector("input, select")
             if (f.type == "bool") input.checked = !!value
             else input.value = value
 
@@ -149,8 +219,16 @@ export async function editConfig(current, seedCount) {
         for (let { fields } of CONFIG_FIELDS) {
             for (let f of fields) {
                 let input = form.elements[f.key]
+                if (f.type == "signals") {
+                    setPath(config, f.key, signalsForLevel(Number(input.value)))
+                    continue
+                }
                 if (f.type == "bool") {
                     setPath(config, f.key, input.checked)
+                    continue
+                }
+                if (f.type == "select") {
+                    setPath(config, f.key, Number(input.value))
                     continue
                 }
                 let n = Number(input.value)

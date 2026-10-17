@@ -24,6 +24,8 @@ import { NeuralNetwork } from "./neuralNetwork.js"
         * threshold 
     }
     * ReproductionPercentile
+    * GamesPerNetwork
+    * SurvivalBonus
     * Bias
     * GPUMultiplication
     * FullyConnected
@@ -62,6 +64,12 @@ export const AITrainer = function (config)
     // Reproduction
     let repPercentile = config?.ReproductionPercentile ?? .5 // Within each species, only networks at or above this fitness percentile reproduce.
                                                              // .8 = roughly the top 20%
+
+    // Fitness: a network's fitness is the average over its games of (game score + survival bonus)
+    let gamesPerNet = config?.GamesPerNetwork ?? 1     // Games each network plays per generation. Averaging over several games stops one lucky
+                                                       // (or unlucky) game with random ghosts from deciding a network's fitness
+    let survivalBonus = config?.SurvivalBonus ?? 0     // Points per second (FPS ticks) pacman is alive in a game. Starvation ends a game
+                                                       // after a few seconds without eating, so hiding can't farm it forever
 
     // Network
     let bias = config?.Bias ?? 1                       // Constant added to every node before activation, the same for all nodes and not evolved.
@@ -104,6 +112,8 @@ export const AITrainer = function (config)
     let species = []                   // Last generation's species, as lists of genomes. A random member of each
                                        // is used as the representative when speciating the next generation
     let simCurrentNets = Array.apply(null, Array(simNum)).map((v, i) => i) // For each game, the index of the network it's playing
+    let simGameFitnesses = simCurrentNets.map(() => [])  // For each game, the fitness of each finished game of its current network
+    let simHasNet = simCurrentNets.map(() => true)       // For each game, false once there are no networks left for it this generation
 
     // Initialize
     init()
@@ -184,6 +194,31 @@ export const AITrainer = function (config)
         population[simCurrentNets[sim]].setScore(score)
     }
 
+    // Record a finished game for a specific sim's network. Once the network has played
+    // gamesPerNet games its fitness is set to their average and the sim moves to the next network,
+    // until then the sim replays the same network
+    // score = the game's score, secondsAlive = how long pacman was alive (ticks / FPS)
+    function finishGame(score, secondsAlive, sim)
+    {
+        let games = simGameFitnesses[sim]
+        games.push(score + (survivalBonus * secondsAlive))
+        if (games.length < gamesPerNet) return
+
+        // Rounded to 1 decimal, the bonus and the average make long decimals
+        let fitness = Math.round((games.reduce((sum, f) => sum + f, 0) / games.length) * 10) / 10
+        // let fitness = Math.max(...games) // Best of the games instead, rewards luck rather than consistency
+        simGameFitnesses[sim] = []
+        setScore(fitness, sim)
+        moveToNext(sim)
+    }
+
+    // Set the score for a specific sim's network
+    function setScore(score, sim)
+    {
+        (score > maxScore) ? maxScore = score : null
+        population[simCurrentNets[sim]].setScore(score)
+    }
+
     // Increment current network being tested and assign to given sim
     function moveToNext(sim)
     {
@@ -194,7 +229,18 @@ export const AITrainer = function (config)
             simCurrentNets[sim] = currentNet
         } else {
             generationOver = true
+            simHasNet[sim] = false
         }
+    }
+
+    // Returns true if the sim has a network to play (it may be partway through that network's games)
+    function hasNetwork(sim) {
+        return simHasNet[sim]
+    }
+
+    // Returns which game (1 to gamesPerNet) the sim's current network is on
+    function getCurrentGameNumber(sim) {
+        return simGameFitnesses[sim].length + 1
     }
 
     // Generate base genome of input*output default connections
@@ -220,6 +266,8 @@ export const AITrainer = function (config)
         generationOver = false
         completedNets = 0
         simCurrentNets = simCurrentNets.map((v, i) => i)
+        simGameFitnesses = simCurrentNets.map(() => [])
+        simHasNet = simCurrentNets.map(() => true)
         generateNewPopulation()
     }
 
@@ -429,6 +477,8 @@ export const AITrainer = function (config)
             Inputs: config?.Inputs ?? 0, // As configured, seeding can change the inputs actually used
             Outputs: config?.Outputs ?? 0,
             ReproductionPercentile: repPercentile,
+            GamesPerNetwork: gamesPerNet,
+            SurvivalBonus: survivalBonus,
             Compatibility: { ...compatibilitySpecs },
             Bias: bias,
             FullyConnected: fullyConnected,
@@ -467,6 +517,9 @@ export const AITrainer = function (config)
     }
 
     return {
+        "finishGame" : finishGame,
+        "hasNetwork" : hasNetwork,
+        "getCurrentGameNumber" : getCurrentGameNumber,
         "moveToNext" : moveToNext,
         "advanceGeneration" : advanceGeneration,
         "getNetworkAt" : getNetworkAt,

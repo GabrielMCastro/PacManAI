@@ -222,6 +222,52 @@ export const MAP = [
 [0, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 0],
 [0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 2, 2, 0],
 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
+    // Map 5, Twin tunnels: after Ms. Pac-Man's first maze. Two tunnels a side and solid side blocks around the ghost house
+    [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0],
+    [0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+    [2, 2, 2, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2],
+    [0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 0, 1, 0, 0, 3, 0, 0, 1, 0, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 1, 1, 0, 3, 3, 3, 0, 1, 1, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 0, 1, 1, 1, 2, 1, 1, 1, 0, 1, 0, 0, 0, 0],
+    [0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0],
+    [2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
+    [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    [0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    [0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
+    // Map 6, Side loops: after the arcade maze's lower half and Ms. Pac-Man's third maze. Pellet loops either side of the ghost house, one low tunnel
+    [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0],
+    [0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0],
+    [0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0],
+    [0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0],
+    [0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0],
+    [0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+    [0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+    [0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0],
+    [0, 1, 0, 0, 1, 0, 1, 0, 0, 3, 0, 0, 1, 0, 1, 0, 0, 1, 0],
+    [0, 1, 0, 0, 1, 1, 1, 0, 3, 3, 3, 0, 1, 1, 1, 0, 0, 1, 0],
+    [0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0],
+    [0, 1, 1, 1, 1, 0, 1, 1, 1, 2, 1, 1, 1, 0, 1, 1, 1, 1, 0],
+    [0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0],
+    [2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2],
+    [0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    [0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0],
+    [0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0],
+    [0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0],
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
 ]
 
 // [row, col] of the power pills for each map in MAP, placed in the "power pill" training mode
@@ -231,9 +277,69 @@ export const POWER_PILLS = [
     [[2, 1], [2, 17], [19, 1], [19, 17]],
     [],
     [],
+    [[2, 1], [2, 17], [16, 1], [16, 17]],
+    [[2, 1], [2, 17], [16, 1], [16, 17]],
 ]
 
-// Builds the wall outlines drawn by map.js from a map's wall tiles. Starting from every tile it follows
+// Names for each map in MAP, shown in the config editor
+export const MAP_NAMES = ["Classic, 2 tunnels", "Default", "Classic variant", "Winding maze", "Open arena", "Twin tunnels", "Side loops"]
+
+// Builds the wall outlines drawn by map.js from a map's wall tiles, in the same style as the hand-drawn
+// testWalls: thick lines through the middle of the wall tiles with rounded corners.
+// Each wall tile draws half of the line to each wall tile next to it (a quarter curve when it's a corner),
+// so the halves meet at the tile edges. Thick walls get an outline rather than a grid: a line between two wall
+// tiles is skipped when there are walls on both sides of it. Lines that run into the edge of the board carry on
+// to the edge, like the walls around the tunnels.
+// Returns a list holding one path of {move}/{line}/{curve} points in tile coordinates
+export function traceWalls(map) {
+    let height = map.length, width = map[0].length
+    let wall = (r, c) => r >= 0 && r < height && c >= 0 && c < width && map[r][c] === OBJECTS.WALL
+    let wallOrEdge = (r, c) => r < 0 || r >= height || c < 0 || c >= width || map[r][c] === OBJECTS.WALL
+
+    // Line between (r, c) and the next tile to the right / below, skipped if it's inside a thick wall
+    let lineRight = (r, c) => wall(r, c) && wall(r, c + 1) &&
+        !(wallOrEdge(r - 1, c) && wallOrEdge(r - 1, c + 1) && wallOrEdge(r + 1, c) && wallOrEdge(r + 1, c + 1))
+    let lineDown = (r, c) => wall(r, c) && wall(r + 1, c) &&
+        !(wallOrEdge(r, c - 1) && wallOrEdge(r + 1, c - 1) && wallOrEdge(r, c + 1) && wallOrEdge(r + 1, c + 1))
+
+    let path = []
+    for (let r = 0; r < height; r++) {
+        for (let c = 0; c < width; c++) {
+            if (!wall(r, c)) continue
+            let left = lineRight(r, c - 1), right = lineRight(r, c), up = lineDown(r - 1, c), down = lineDown(r, c)
+            // Runs along a row or column that reach the edge of the board carry on to the edge
+            if (!up && !down) {
+                if (c == 0 && right) left = true
+                if (c == width - 1 && left) right = true
+            }
+            if (!left && !right) {
+                if (r == 0 && down) up = true
+                if (r == height - 1 && up) down = true
+            }
+
+            let x = c + .5, y = r + .5
+            let ends = []  // Where each half line ends, the middle of the tile's edge
+            if (left)  ends.push([x - .5, y])
+            if (up)    ends.push([x, y - .5])
+            if (right) ends.push([x + .5, y])
+            if (down)  ends.push([x, y + .5])
+
+            if (ends.length == 0) {
+                // A lone wall tile is a dot. A tile inside a thick wall has nothing to draw
+                let lone = !wall(r, c - 1) && !wall(r, c + 1) && !wall(r - 1, c) && !wall(r + 1, c)
+                if (lone) path.push({ "move": [x, y] }, { "line": [x + .01, y] })
+            } else if (ends.length == 2 && (left || right) && (up || down)) {
+                // Corner, curve between the two edges
+                path.push({ "move": ends[0] }, { "curve": [x, y, ...ends[1]] })
+            } else {
+                ends.forEach(e => path.push({ "move": [x, y] }, { "line": e }))
+            }
+        }
+    }
+    return [path]
+}
+
+// Old wall outline builder, no longer used (it draws stray diagonal lines on some maps). Starting from every tile it follows
 // runs of walls right and down, and starts new lines where walls branch (see isJoint).
 // Returns a list of paths, each a list of {move}/{line} points in tile coordinates
 export function generateWalls(map) {
@@ -287,7 +393,7 @@ function isJoint(map, x, y) {
     && ((map?.[y]?.[x + 1] == 0) || (map?.[y]?.[x - 1] == 0))
 }
 
-// Hand-drawn wall outlines for map 1, with rounded corners. The other maps use generateWalls
+// Hand-drawn wall outlines for map 1, with rounded corners. The other maps use traceWalls
 export const testWalls = [
     
     [{"move": [0, 9.5]}, {"line": [3, 9.5]},

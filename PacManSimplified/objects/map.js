@@ -1,4 +1,4 @@
-import { OBJECTS, MAP, POWER_PILLS, generateWalls, testWalls } from "./definitions.js";
+import { OBJECTS, MAP, POWER_PILLS, traceWalls, testWalls } from "./definitions.js";
 
 /**
  *  The board: the current state of every tile, and drawing the walls, biscuits and pills.
@@ -10,7 +10,8 @@ export const GameMap = function (size, render) {
         width     = null,   // Columns
         blockSize = size,   // Size of a tile on the canvas in pixels
         pillSize  = 0,      // Animation frame for the pulsing power pills
-        walls = null,       // Wall outlines to draw, see generateWalls in definitions.js
+        walls = null,       // Wall outlines to draw, see traceWalls in definitions.js
+        foodCount = 0,      // Biscuits and pills on the board at the last reset
         map       = null;   // [row][col] of OBJECTS values, a copy of the MAP that gets eaten as pacman moves
     
     function withinBounds(y, x) {
@@ -71,10 +72,16 @@ export const GameMap = function (size, render) {
         if (powerPills) {
             POWER_PILLS[mapI].forEach(([y, x]) => map[y][x] = OBJECTS.PILL)
         }
-        walls = mapI == 1 ? testWalls : generateWalls(map)
+        walls = mapI == 1 ? testWalls : traceWalls(map)
         height = map.length;
         width  = map[0].length;       
+        foodCount = map.flat().filter(b => b === OBJECTS.BISCUIT || b === OBJECTS.PILL).length
     };
+
+    // Number of biscuits and pills on the board at the last reset, eating them all completes the level
+    function getFoodCount() {
+        return foodCount
+    }
 
     function getMapClone(mapI) {
         return [...map.map(row => [...row])]
@@ -179,5 +186,6 @@ export const GameMap = function (size, render) {
         "width"        : width,
         "blockSize"    : blockSize,
         "getMapClone"  : getMapClone,
+        "getFoodCount" : getFoodCount,
     };
 };

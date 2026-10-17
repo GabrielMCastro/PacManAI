@@ -199,7 +199,8 @@
       .config-row { display: flex; flex-direction: column; gap: 4px; }
       .config-row label { font-weight: 500; }
       .config-row small { color: var(--muted); font-size: 11px; line-height: 1.4; }
-      .config-row input[type=number] {
+      .config-row input[type=number],
+      .config-row select {
         padding: 6px 8px;
         border: 1px solid var(--border);
         border-radius: 6px;
@@ -208,12 +209,45 @@
         font: inherit;
         font-variant-numeric: tabular-nums;
       }
-      .config-row input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+      .config-row input:focus, .config-row select:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
       .config-bool label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
       .config-bool input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
       .config-row .config-error { display: none; color: #f87171; }
       .config-row.invalid input[type=number] { border-color: #f87171; }
       .config-row.invalid .config-error { display: block; }
+
+      /* Input signals: a row of cumulative steps, everything up to the selected step is included */
+      .config-signals { grid-column: 1 / -1; }
+      .config-label { font-weight: 500; }
+      .signal-steps {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        overflow: hidden;
+        background: var(--card);
+      }
+      .signal-steps:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+      .config-row .signal-steps label {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 7px 4px;
+        border-left: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.2;
+        text-align: center;
+        cursor: pointer;
+        transition: background .15s, color .15s;
+      }
+      .signal-steps label:first-child { border-left: 0; }
+      .signal-steps label:hover { color: var(--text); }
+      .signal-steps input { position: absolute; opacity: 0; pointer-events: none; }
+      .signal-steps label.included { background: var(--accent-dim); color: var(--text); border-left-color: transparent; }
+      .signal-steps label.selected { background: var(--accent); color: var(--bg); font-weight: 600; }
 
       .toast {
         position: fixed;
