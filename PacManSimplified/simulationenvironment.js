@@ -2,7 +2,7 @@
 //
 //   config ──> startTraining() ──> AITrainer (ai/aiTrainer.js) + SimNum Game instances (game.js)
 //                                    │
-//   clock worker (every 4ms) ──> onClock() ──┐            (rendering mode, paced at FRAMERATE ticks/s)
+//   clock worker (every 4ms) ──> onClock() ──┐            (rendering mode, TICKS_PER_SECOND x Speed ticks/s)
 //   MessageChannel ──> runHeadlessBatch() ───┴─> stepAll() (headless mode, as fast as possible)
 //                                                  │  every Game advances one tick, asking the trainer
 //                                                  │  for moves and reporting scores to it
@@ -20,6 +20,7 @@ import { Game, MODES, INPUT_SIGNALS, inputCount } from "./game.js";
 import { AITrainer } from "/ai/aiTrainer.js"
 import { NetworkVisualizer } from "/ai/networkVisualizer.js"
 import { confirmDialog, editConfig, toast } from "./dialogs.js"
+import { TICKS_PER_SECOND } from "/objects/definitions.js"
 
 // NOTE: nothing in the project imports m, it looks unused
 export const m = "m"
@@ -41,10 +42,13 @@ const genLabel = document.getElementById("gen_progress_label")
 const runBar = document.getElementById("run_progress")
 const runLabel = document.getElementById("run_progress_label")
 const speedLabel = document.getElementById("speed_label")
+const speedSelect = document.getElementById("speed_select")
+const chaseToggle = document.getElementById("chase_toggle")
 
-// FRAMERATE is also passed to every Game as its fps, game timings (countdowns, starvation, the survival
-// bonus) are counted in ticks, so they stay the same in game time whether the run is rendered or headless
-let FRAMERATE = 150,         // Simulation ticks per second when rendering
+// Every Game is given TICKS_PER_SECOND (objects/definitions.js) as its ticks per game second, so game timings
+// (starvation, the survival bonus, ghost timers) are the same whether the run is rendered or headless, and
+// whatever the playback speed. playbackSpeed only sets how many ticks run per real second while rendering
+let playbackSpeed = 1,       // Speed control on the page: rendering runs TICKS_PER_SECOND * playbackSpeed ticks/s
     HEADLESS_BATCH_MS = 50,  // How long a headless batch runs before yielding to the page
     GAMES = new Array();     // The Game instances, one per simulation (SimNum of them)
 
@@ -99,6 +103,7 @@ let config = {
     GhostCount: 1,       // Ghosts in the ghost and power pill modes, 1 to 4
     MapIndex: 1,         // Which map in MAP (objects/definitions.js) is played
     DecideOnTileCenter: true, // Network only picks a move when pacman is centered on a tile, turn off to react every tick
+    StarveSeconds: 3,    // Game seconds without eating before pacman starves
     Compatibility: {
         c1: 1,
         c2: 1,
@@ -116,6 +121,8 @@ export const getTrainer = () => AI
 let headless = false,          // true = no rendering, run as fast as possible (see runHeadlessBatch)
     mode = "pellets",          // Training mode of the current generation
     modeRequested = "pellets", // Training mode to switch to at the start of the next generation
+    chase = false,             // Ghosts chase pacman (instead of wandering) in the current generation
+    chaseRequested = false,    // The chasing checkbox, applied at the start of the next generation like the mode
     paused = false,
     pausedAt = 0,              // performance.now() when the pause started, to leave paused time out of timings
     finished = false,          // true once MaxGens generations are done, nothing steps after that
@@ -136,6 +143,7 @@ function gameOptions(config) {
         ghostCount: config.GhostCount,
         mapIndex: config.MapIndex,
         decideOnTileCenter: config.DecideOnTileCenter,
+        starveSeconds: config.StarveSeconds,
     }
 }
 
@@ -186,14 +194,15 @@ function startTraining(newConfig) {
     AI = newAI
     // A mode picked during the old run would otherwise wait for a generation that never comes
     mode = modeRequested
+    chase = chaseRequested
     updateModeNote()
 
     // One Game per simulation, each with its own canvas. id i tells the trainer which network to play
     GAMES = []
     for (let i = 0; i < config.SimNum; i++) {
-        const g = Game(FRAMERATE, AI, i, gameOptions(config))
+        const g = Game(TICKS_PER_SECOND, AI, i, gameOptions(config))
         g.init(simEl)
-        g.setMode(MODES[mode])
+        g.setMode(currentMode())
         g.startNewGame()
         GAMES.push(g)
     }
@@ -357,11 +366,12 @@ function completeGeneration() {
 
     // Apply a requested mode change, every network in a generation plays the same mode
     mode = modeRequested
+    chase = chaseRequested
     updateModeNote()
 
     for (let i = 0; i < GAMES.length; i++) {
         // GAMES[i].setMapI(3)
-        GAMES[i].setMode(MODES[mode])
+        GAMES[i].setMode(currentMode())
         GAMES[i].startNewGame()
     }
 
@@ -392,7 +402,7 @@ function logGeneration(gen, avg, top, seconds, runTag) {
             <span class="gen-number">Gen ${gen}</span>
             <span class="gen-time">${seconds.toFixed(1)}s${runTag}</span>
         </div>
-        <div class="gen-mode gen-mode-${mode}">${MODES[mode].label}</div>
+        <div class="gen-mode gen-mode-${mode}">${MODES[mode].label}${chase && MODES[mode].ghosts ? " · chasing" : ""}</div>
         <div class="gen-stats">
             <span>Avg <b>${avg.toFixed(1)}</b></span>
             <span>Top <b>${top?.getScore() ?? 0}</b></span>
@@ -406,7 +416,7 @@ function logGeneration(gen, avg, top, seconds, runTag) {
 // Timers on the page are throttled in background tabs, timers inside a worker are not.
 // The worker acts as a clock that paces the simulation while rendering.
 // It only says "time has passed", onClock() measures how much and runs that many ticks, so the speed
-// is FRAMERATE ticks/s no matter how often the worker actually fires.
+// is TICKS_PER_SECOND * playbackSpeed ticks/s no matter how often the worker actually fires.
 let clock = null // The clock Worker, null when not running
 
 // Creates the clock: a Worker built from an inline script (a Blob URL, so no separate file is needed)
@@ -417,8 +427,8 @@ function startClock() {
     clock.onmessage = onClock
 }
 
-// Runs on every clock message. Turns the time since the last message into ticks owed (FRAMERATE per
-// second) and runs the whole ones, keeping the fraction for next time.
+// Runs on every clock message. Turns the time since the last message into ticks owed (TICKS_PER_SECOND *
+// playbackSpeed per second) and runs the whole ones, keeping the fraction for next time.
 // While headless, paused or finished it only moves lastClock forward, so no backlog builds up
 function onClock() {
     let now = performance.now()
@@ -427,12 +437,13 @@ function onClock() {
         return
     }
 
-    pendingTicks += ((now - lastClock) / 1000) * FRAMERATE
+    let ticksPerSecond = TICKS_PER_SECOND * playbackSpeed
+    pendingTicks += ((now - lastClock) / 1000) * ticksPerSecond
     lastClock = now
 
     // Don't try to catch up on more than a quarter second of backlog
     // (e.g. after the machine slept), otherwise the page would freeze running ticks to catch up
-    pendingTicks = Math.min(pendingTicks, FRAMERATE / 4)
+    pendingTicks = Math.min(pendingTicks, ticksPerSecond / 4)
     // The flags are rechecked because stepAll() can finish the run partway through
     while (pendingTicks >= 1 && !headless && !paused && !finished) {
         pendingTicks -= 1
@@ -518,10 +529,30 @@ function setPaused(value) {
 
 headlessBtn.addEventListener("click", () => setHeadless(!headless))
 
+// Playback speed, takes effect on the next clock message. Doesn't restart anything or change training
+speedSelect.value = String(playbackSpeed) // Browsers can restore a stale selection on reload
+speedSelect.addEventListener("change", () => playbackSpeed = Number(speedSelect.value))
+
 // Shows which mode is waiting to start, mode changes only apply at the start of a generation
 function updateModeNote() {
-    modeNote.textContent = modeRequested === mode ? "" : `${MODES[modeRequested].label} starts next generation`
+    let changes = []
+    if (modeRequested !== mode) changes.push(`${MODES[modeRequested].label} starts next generation`)
+    if (chaseRequested !== chase) changes.push(`Chasing ghosts ${chaseRequested ? "on" : "off"} next generation`)
+    modeNote.textContent = changes.join(" · ")
 }
+
+// The mode every game plays this generation: the training mode plus whether ghosts chase
+function currentMode() {
+    return { ...MODES[mode], chase }
+}
+
+// Chasing ghosts checkbox. Like the mode it takes effect at the next generation, so every network
+// in a generation is scored against the same kind of ghosts
+chaseToggle.checked = chaseRequested // Browsers can restore a stale checkbox on reload
+chaseToggle.addEventListener("change", () => {
+    chaseRequested = chaseToggle.checked
+    updateModeNote()
+})
 
 // Browsers can restore a stale radio selection on reload
 modeInputs.forEach(input => input.checked = input.value === modeRequested)
@@ -537,8 +568,8 @@ pauseBtn.addEventListener("click", () => setPaused(!paused))
 // and startTraining() accepts it
 configBtn.addEventListener("click", async () => {
     // The trainer doesn't know about the game options, so add them for the editor
-    let { InputSignals, GhostCount, MapIndex, DecideOnTileCenter } = config
-    let edited = await editConfig({ ...AI.getConfig(), InputSignals: { ...InputSignals }, GhostCount, MapIndex, DecideOnTileCenter }, await getSeedCount())
+    let { InputSignals, GhostCount, MapIndex, DecideOnTileCenter, StarveSeconds } = config
+    let edited = await editConfig({ ...AI.getConfig(), InputSignals: { ...InputSignals }, GhostCount, MapIndex, DecideOnTileCenter, StarveSeconds }, await getSeedCount())
     // Keep options the editor doesn't show (e.g. Outputs, activation functions)
     if (edited && startTraining({ ...config, ...edited })) {
         toast("Training restarted with the new config")

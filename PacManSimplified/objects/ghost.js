@@ -9,7 +9,7 @@ import { LEFT, UP, RIGHT, DOWN } from "./definitions.js";
  *  game   - only needs getTick(), game.js passes {getTick}. All timing is in simulation ticks
  *  map    - the GameMap, for wall / floor checks
  *  colour - body colour when not eatable or eaten
- *  fps    - the game's FPS, cancels out in secondsAgo()
+ *  fps    - ticks per second of game time (TICKS_PER_SECOND), the same second starvation uses, see secondsAgo()
  *  render - false skips drawing
  *
  *  States, from the eatable and eaten ticks:
@@ -20,7 +20,7 @@ import { LEFT, UP, RIGHT, DOWN } from "./definitions.js";
  *  game.js update() checks isVunerable() first and isDangerous() second, so a vulnerable ghost gets eaten
  *  and an eaten one is ignored.
  */
-export const Ghost = function (game, map, colour, fps, render) {
+export const Ghost = function (game, map, colour, fps, render, chase = false) {
 
     var position  = null,   // {x, y} in tenths of a tile
         direction = null,   // Direction currently moving in
@@ -156,9 +156,10 @@ export const Ghost = function (game, map, colour, fps, render) {
         return onWholeSquare(pos.y) && onWholeSquare(pos.x);
     };
 
-    // Treats 30 ticks as a second whatever the fps is, so this is (ticks since) / 30
+    // Seconds of game time since the given tick, fps ticks to a second like starvation in game.js
+    // (it used to treat 30 ticks as a second, the original game's rate, so ghost timers ran 5x faster than starvation)
     function secondsAgo(tick) { 
-        return ((game.getTick() - tick) * (fps / 30)) / fps;
+        return (game.getTick() - tick) / fps;
     };
 
     // Blue while eatable, flashing white for the last 3 "seconds", grey while eaten
@@ -178,7 +179,7 @@ export const Ghost = function (game, map, colour, fps, render) {
     };
 
     // Expire the eatable/eaten states, called every simulation tick
-    // Eatable lasts 8 "seconds" (240 ticks), eaten lasts 3 (90 ticks)
+    // Eatable lasts 8 seconds (1200 ticks at 150 ticks a second), eaten lasts 3 (450 ticks)
     // Called by game.js update() just before move()
     function update() {
         if (eatable && secondsAgo(eatable) > 8) {
@@ -317,7 +318,7 @@ export const Ghost = function (game, map, colour, fps, render) {
             
             // The retry doesn't pass userPos, fine while chasePacman is off (and it falls back to {x: 0, y: 0})
             due = getRandomDirection();            
-            return move(ctx);
+            return move(ctx, userPos, i); // Pass pacman's position on, the retry's chase would aim at (0, 0) without it
         }
 
         position = npos;        
@@ -328,7 +329,10 @@ export const Ghost = function (game, map, colour, fps, render) {
         }
         
         // Change false to true to make the ghosts chase pacman
-        due = false ? chasePacman(userPos ?? {x: 0, y: 0}, oldPos ?? {x: 0, y: 0}) : getRandomDirection();
+        // Chasing ghosts head for pacman, but only in their normal state: while eatable (frightened) or eaten they
+        // wander at random like the other ghosts, as in the arcade game
+        let normal = eatable === null && eaten === null
+        due = (chase && normal) ? chasePacman(userPos ?? {x: 0, y: 0}, oldPos ?? {x: 0, y: 0}) : getRandomDirection();
         
         return {
             "new" : position,

@@ -69,10 +69,11 @@ Each generation:
 The rules are Pac-Man's, simplified for training:
 
 - **One life.** A game ends when Pac-Man dies, starves, or clears the board.
-- **Starvation.** If Pac-Man goes 3 seconds of game time without eating, the game ends. This stops networks from wandering or dithering forever.
+- **Starvation.** If Pac-Man goes `StarveSeconds` (3 by default) seconds of game time without eating, the game ends. This stops networks from wandering or dithering forever.
 - **Clearing the board ends the game** (it counts as a win) instead of moving on to level 2.
-- **Ghosts move randomly.** At each junction a ghost picks a random turn. Real Pac-Man ghosts chase you; a chasing mode exists in `ghost.js` but is switched off.
+- **Ghosts wander or chase.** By default, a ghost takes random turns at junctions. With **Chasing ghosts** ticked on the page, ghosts head for Pac-Man instead, turning toward him at each junction that allows it. While eatable or eaten, ghosts always wander, like the arcade game's frightened ghosts. The chase is simpler than the arcade's individual ghost personalities, and ghosts are half Pac-Man's speed, so they catch him by cutting him off rather than from behind.
 - **Scoring:** 10 per pellet, 50 per power pill, and 50, 100, 150… for the 1st, 2nd, 3rd… ghost eaten after a power pill.
+- **Power pills** make the ghosts eatable for 8 seconds, flashing for the last 3. An eaten ghost turns grey and is harmless for 3 seconds.
 
 **Training modes**, picked on the page and applied from the next generation:
 
@@ -94,7 +95,9 @@ The rules are Pac-Man's, simplified for training:
 | 5 | Twin tunnels | 172 | after Ms. Pac-Man's first maze, two tunnels a side |
 | 6 | Side loops | 187 | after the arcade maze's lower half, pellet loops beside the ghost house |
 
-Positions are in pixels, 10 px per tile. Pac-Man moves 2 px per tick and ghosts move 1 px, so Pac-Man is twice as fast. When rendering, the simulation runs at 150 ticks per second; headless, it runs as fast as the machine allows.
+Positions are in pixels, 10 px per tile. Pac-Man moves 2 px per tick and ghosts move 1 px, so Pac-Man is twice as fast.
+
+**Game time.** Every timer (starvation, the survival bonus, ghost timers) counts in game seconds of 150 ticks (`TICKS_PER_SECOND`). That's fixed, so training behaves the same however fast the games are shown. The **Speed** control on the page only changes how many ticks run per real second while rendering: 1× is 150 ticks a second, and 0.2× is the original game's pace of 30. Headless runs ignore it and go as fast as the machine allows.
 
 ---
 
@@ -366,6 +369,7 @@ Training is configured in the `config` object at the top of [`PacManSimplified/s
 | `MapIndex` | 1 | 1 | Which map is played (see [maps](#the-game-the-networks-play)) |
 | `GhostCount` | 1 | 4 | Ghosts in the Ghosts and Power pill modes |
 | `DecideOnTileCenter` | true | false | Only ask the network for a move when Pac-Man is centred on a tile |
+| `StarveSeconds` | 3 | 3 | Game seconds without eating before Pac-Man starves and the game ends |
 
 ### Seeding
 
@@ -381,9 +385,8 @@ Training is configured in the `config` object at the top of [`PacManSimplified/s
 
 | Constant | Value | Where |
 |---|---|---|
-| Starvation time | 3 s | `STARVE_SECONDS` in `game.js` |
 | Input search range | 10 tiles | `MAX_SEARCH_DISTANCE` in `objects/definitions.js` |
-| Rendering speed | 150 ticks/s | `FRAMERATE` in `simulationenvironment.js` |
+| Game second | 150 ticks | `TICKS_PER_SECOND` in `objects/definitions.js` |
 | Lives | 1 | `initUser` in `objects/user.js` |
 
 ---
@@ -393,6 +396,8 @@ Training is configured in the `config` object at the top of [`PacManSimplified/s
 - **Status bar:** the generation, how many networks have played, and the best fitness so far this generation.
 - **Mode:** Pellets only, Ghosts, or Power pill. A change applies from the next generation.
 - **Pause** (or the P key).
+- **Chasing ghosts:** ghosts head for Pac-Man instead of wandering (in the Ghosts and Power pill modes). Like the mode, a change applies from the next generation, so every network in a generation faces the same kind of ghosts. The generation list marks those generations "chasing".
+- **Speed:** how fast games play while rendering, from 0.2× (the original game's pace) to 4×. It applies straight away and doesn't affect training. At high speeds the machine may not keep up.
 - **Headless:** stops drawing and runs the simulation as fast as possible, with progress bars and a ticks-per-second readout. Training keeps running at its normal pace in a background tab either way.
 - **Save networks:** writes the current generation to `ai/seeds`.
 - **Config:** opens the config editor. Saving it restarts training.
@@ -406,11 +411,11 @@ Training is configured in the `config` object at the top of [`PacManSimplified/s
 
 **Save networks** (or the end of a training run) saves the **last finished generation**, sorted **best fitness first**. The networks currently playing haven't been scored yet, so they aren't the ones saved. The server **deletes every `net_N.txt` in `ai/seeds`** and writes `net_0.txt` (the best network), `net_1.txt`, … Each file also stores that network's fitness. Because the files are in rank order, **Seed networks = N loads the top N**. During the first generation nothing has been scored yet, so saving then writes the current, unscored population in its original order. `ai/seeds` is a working folder and is git-ignored.
 
-Populations worth keeping go in **`ai/saved_networks/`**, which is committed. For example, `pellets_only_2000max_1200avg` is a pellets-only population with a top fitness of 2000 and an average of 1200, trained on the Default map. To use one:
+Populations worth keeping go in **`ai/training_runs/`**, which is committed, one folder per training run with a folder per stage inside it. For example, `10_16.17_25-10_vision_depth/` holds a run's `pellets_only_2000max_1200avg` (pellets only, top fitness 2000, average 1200), `ghosts_80gens_1909max_962avg` and `allsignals_50gens_2952max_1610avg` stages. To use one:
 
 ```sh
 cd PacManSimplified
-cp ai/saved_networks/pellets_only_2000max_1200avg/* ai/seeds/
+cp ai/training_runs/10_16.17_25-10_vision_depth/pellets_only_2000max_1200avg/* ai/seeds/
 ```
 
 Then, in the config editor, set **Seed networks** to 200 and **Input signals** to match the networks: "+ Pellets" for this one. If the seeds' input count plus **New inputs** doesn't match the selected inputs, training refuses to start and says why.
@@ -434,7 +439,7 @@ PacManSimplified/
 │   ├── neuralNetwork.js        a genome: matrices, the complex-number forward pass, mutation
 │   ├── networkVisualizer.js    d3 diagrams of networks
 │   ├── seeds/                  working folder for saved networks (git-ignored)
-│   └── saved_networks/         populations kept on purpose
+│   └── training_runs/          populations kept on purpose, by run and stage
 ├── objects/
 │   ├── definitions.js          constants, the maps, power pill spots, wall drawing
 │   ├── map.js                  the board: tiles, eating, drawing
@@ -451,7 +456,7 @@ The code is heavily commented. The NEAT steps in `aiTrainer.js` and the forward 
 
 ## Known limitations
 
-- **Ghosts move randomly**, so ghost avoidance is learned against wandering ghosts, not chasing ones.
+- **Simple ghost AI.** Chasing ghosts use one greedy rule (turn toward Pac-Man), not the arcade's four ghost personalities, so avoidance learned against them won't fully transfer to the real game.
 - **Inputs only reach 10 tiles.** Late in a level, pellets further away read as 0, so clearing the last few pellets is partly luck.
 - **Mid-tile reactions.** With `DecideOnTileCenter` on, networks only learn to decide at tile centres. Turning it off after training makes them decide every tick, which they haven't practised. Train the last stage with it off if you want that.
 - **No shared innovation numbers within a generation.** Two children that add the same connection in the same generation get different innovation numbers; original NEAT gives them the same one.

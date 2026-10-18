@@ -30,7 +30,7 @@ import { Ghost } from "/objects/ghost.js";
 // Pacman dies if it goes this long without eating. Without this a network that learns to hide in a
 // corner (or bounce between two tiles) would survive forever and stall the generation.
 // Converted to ticks below (starveTicks = STARVE_SECONDS * fps)
-const STARVE_SECONDS = 3
+const STARVE_SECONDS = 3 // Default for the starveSeconds option (StarveSeconds in the config)
 
 // One colour per ghost, setMode() makes the first ghostCount of them
 // NOTE: MAP is imported but not used in this file, the maps are loaded through GameMap (map.reset)
@@ -76,11 +76,14 @@ export function inputCount(inputSignals) {
  *      mapIndex           - which map in MAP is played
  *      decideOnTileCenter - only ask the network for a move when pacman is centered on a tile (every 5 ticks)
  *                           instead of every tick. Stops it reversing back and forth on one spot while training
+ *      starveSeconds      - game seconds without eating before pacman starves (StarveSeconds in the config,
+ *                           defaults to STARVE_SECONDS)
  *
  *  Params:
- *      fps - ticks per "second" of game time. Only used for starvation (starveTicks) and to turn
- *            aliveTicksAtFood into seconds for the fitness. It does not control how often step() is called,
- *            simulationenvironment.js does that
+ *      fps - ticks per "second" of game time (TICKS_PER_SECOND from objects/definitions.js). Used for
+ *            starvation (starveTicks), to turn aliveTicksAtFood into seconds for the fitness, and passed to the
+ *            ghosts for their eatable / eaten timers. It does not control how often step() is called,
+ *            simulationenvironment.js does that (the Speed control)
  *      AI  - the shared AITrainer, see the hand-off section below
  *      id  - this simulation's index, used as the canvas id and to tell the trainer which sim is asking
  *
@@ -133,6 +136,7 @@ export const Game = function (fps, AI, id, options = {}) {
         ghostCount = GHOST_COLOURS.length,
         mapIndex = 1,
         decideOnTileCenter = false,
+        starveSeconds = STARVE_SECONDS,
     } = options
 
     var state        = WAITING,        // WAITING, COUNTDOWN, PLAYING, EATEN_PAUSE or DYING, see step()
@@ -161,7 +165,7 @@ export const Game = function (fps, AI, id, options = {}) {
         observer,                      // Watches whether the canvas is on screen
         wins = 0,                      // Levels completed. NOTE: counted but never displayed or reported anywhere
         FPS = fps,
-        starveTicks = STARVE_SECONDS * fps; // Ticks without food before pacman starves, see step()
+        starveTicks = starveSeconds * fps; // Ticks without food before pacman starves, see step()
 
     // Current tick. Handed to the ghosts (Ghost({"getTick": getTick}, ...)) so they can time how long
     // they stay eatable or eaten
@@ -1396,7 +1400,7 @@ export const Game = function (fps, AI, id, options = {}) {
     }
 
     // Switch training mode, takes effect from the next startNewGame()
-    // m is one of MODES. Rebuilds the ghosts (the first ghostCount colours, none in the pellets mode);
+    // m is one of MODES, optionally with chase: true for ghosts that chase pacman. Rebuilds the ghosts (the first ghostCount colours, none in the pellets mode);
     // whether power pills are placed is read from mode by map.reset() in startNewGame().
     // Called by init() with the default mode, and by simulationenvironment.js at the start of training
     // and of each generation (the mode can be changed between generations)
@@ -1405,7 +1409,7 @@ export const Game = function (fps, AI, id, options = {}) {
     function setMode(m) {
         mode = m
         ghosts = mode.ghosts
-            ? GHOST_COLOURS.slice(0, ghostCount).map(colour => Ghost({"getTick":getTick}, map, colour, FPS, true))
+            ? GHOST_COLOURS.slice(0, ghostCount).map(colour => Ghost({"getTick":getTick}, map, colour, FPS, true, !!mode.chase))
             : []
         ghostPos = []
     }

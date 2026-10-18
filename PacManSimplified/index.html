@@ -75,6 +75,24 @@
         cursor: pointer;
       }
       .toggle:hover { border-color: var(--muted); }
+
+      .chase-control { display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-size: 13px; cursor: pointer; }
+      .chase-control input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; cursor: pointer; }
+
+      /* Playback speed, rendering mode only */
+      .speed-control { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+      .speed-control select {
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--card);
+        color: var(--text);
+        font: inherit;
+        cursor: pointer;
+      }
+      .speed-control select:hover { border-color: var(--muted); }
+      .speed-control select:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+      body.headless .speed-control { opacity: .5; }
       .toggle-track {
         width: 32px; height: 18px;
         border-radius: 999px;
@@ -476,17 +494,30 @@
         <input type="radio" name="mode" id="mode_power" value="power">
         <label for="mode_power">Power pill</label>
       </fieldset>
+      <label class="chase-control" title="Ghosts head for pacman instead of wandering (in the Ghosts and Power pill modes). Takes effect at the next generation">
+        <input type="checkbox" id="chase_toggle"> Chasing ghosts
+      </label>
       <button id="pause_toggle" class="btn" aria-pressed="false" title="Pause or resume training (P)">
         <span class="btn-icon"></span>
         <span class="btn-label">Pause</span>
       </button>
+      <label class="speed-control" title="How fast games play while rendering. Doesn't change training, and headless runs ignore it">
+        Speed
+        <select id="speed_select">
+          <option value="0.2">0.2× · original game</option>
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+        </select>
+      </label>
       <button id="headless_toggle" class="toggle" aria-pressed="false"
               title="Train at full CPU speed without rendering">
         <span class="toggle-track"></span>
         <span class="toggle-label">Headless off</span>
       </button>
       <span class="divider"></span>
-      <button id="save_button" class="btn" title="Save the current generation's networks to ai/seeds">Save networks</button>
+      <button id="save_button" class="btn" title="Save the last finished generation's networks to ai/seeds, best first">Save networks</button>
       <button id="config_button" class="btn" title="Edit the training config, restarts training">Config</button>
     </div>
   </header>

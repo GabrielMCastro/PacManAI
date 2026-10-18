@@ -76,6 +76,7 @@ const CONFIG_FIELDS = [
     { group: "Game", fields: [
         { key: "MapIndex", label: "Map", type: "select", options: MAP_OPTIONS, hint: "The board every game is played on" },
         { key: "GhostCount", label: "Ghosts", type: "int", min: 1, max: 4, hint: "Ghosts in the ghost and power pill modes. Start with 1 and add more as the average flattens" },
+        { key: "StarveSeconds", label: "Starvation time", type: "number", min: 0.5, hint: "Game seconds without eating before pacman starves and the game ends. Stops networks stalling or wandering forever" },
         { key: "DecideOnTileCenter", label: "Decide on tile centers", type: "bool", hint: "Network only picks a move when pacman is centered on a tile. Stops it reversing back and forth on one spot, turn off after training to react every tick" },
     ]},
     { group: "Fitness", fields: [

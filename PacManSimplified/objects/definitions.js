@@ -603,6 +603,13 @@ export const WALLS = generateWalls(MAP.clone()).map((w, i) => i == 1 ? testWalls
 
 // Number of steps to take when searching through map from
 // PacMan's position for items
+// Simulation ticks in one "second" of game time. Every timer in the game counts in these seconds: starvation
+// (STARVE_SECONDS in game.js), the survival bonus, and how long ghosts stay eatable or eaten (ghost.js).
+// It's fixed so training behaves the same however fast the games are shown. How many ticks run per real second
+// while rendering is the Speed control on the page (simulationenvironment.js), 1x = this many.
+// The original game ran at 30 ticks a second, so 0.2x speed is the original game's pace
+export const TICKS_PER_SECOND = 150
+
 // Used by game.js: the depth limit of the walking-distance searches that build the network's inputs
 // (traverseToObjects, and the commented-out bfsToObjects call), and the distance at which getInput()'s norm() reaches 0, so things
 // further than this many tiles away read as 0 and closer things approach 1
